@@ -5,6 +5,9 @@
 #include "version.h"
 
 #include <cmath>
+#include <algorithm>
+#include <cstdint>
+#include <vector>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>

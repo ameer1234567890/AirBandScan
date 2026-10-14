@@ -9,6 +9,7 @@
 #pragma once
 
 #include <cmath>
+#include <algorithm>
 #include <complex>
 #include <cstdint>
 #include <vector>

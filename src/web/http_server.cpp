@@ -3,6 +3,9 @@
 #include "util/log.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <vector>
 #include <cstdio>
 #include <cstring>
 #include <sstream>

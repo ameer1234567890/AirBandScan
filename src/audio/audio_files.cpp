@@ -1,6 +1,7 @@
 #include "audio/audio_files.h"
 
 #include <cstdio>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>

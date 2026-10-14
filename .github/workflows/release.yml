@@ -132,7 +132,10 @@ jobs:
       - name: Build librtlsdr (rtl-sdr-blog ${{ env.RTLSDR_TAG }})
         run: |
           git clone -q --depth 1 -b "$RTLSDR_TAG" https://github.com/rtlsdrblog/rtl-sdr-blog rtlsdr-src
+          # GCC 15 defaults to C23, which rejects rtl-sdr's bundled K&R-style
+          # getopt.c ("too many arguments to function 'getenv'"): build as C17.
           cmake -S rtlsdr-src -B rtlsdr-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_FLAGS="-std=gnu17" \
             -DCMAKE_INSTALL_PREFIX="$MINGW_PREFIX" \
             -DCMAKE_SHARED_LINKER_FLAGS="-L$MINGW_PREFIX/lib" -DCMAKE_EXE_LINKER_FLAGS="-L$MINGW_PREFIX/lib"
           ninja -C rtlsdr-build install
