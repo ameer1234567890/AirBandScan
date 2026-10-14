@@ -65,7 +65,23 @@ and lets you listen, browse and download them from a web browser.
 
 ## Install
 
-### Linux (Debian / Ubuntu)
+### Download (prebuilt)
+
+Ready-to-run packages are on the **[Releases](https://github.com/dhihacker/AirBandScan/releases)** page:
+
+| System | File |
+|---|---|
+| Windows 64-bit / 32-bit | `airbandscan-*-windows-x64.zip` / `-windows-x86.zip` |
+| Linux 64-bit / 32-bit | `airbandscan-*-linux-x86_64.tar.gz` / `-linux-i386.tar.gz` |
+| Raspberry Pi 64-bit / 32-bit OS | `airbandscan-*-raspberrypi-arm64.tar.gz` / `-raspberrypi-armhf.tar.gz` |
+
+Linux and Raspberry Pi builds need Debian 12, Ubuntu 24.04, Raspberry Pi OS (bookworm) or newer, plus
+`sudo apt install librtlsdr0 libairspy0 libhackrf0 libmp3lame0`. Releases are built by
+[GitHub Actions](.github/workflows/release.yml) whenever a version tag such as `v1.0.0` is pushed.
+
+### Build from source
+
+#### Linux (Debian / Ubuntu)
 
 ```bash
 sudo apt install build-essential cmake ninja-build pkg-config librtlsdr-dev libmp3lame0
@@ -78,14 +94,14 @@ ninja -C build
 
 Fedora: `rtl-sdr-devel lame-libs` · Arch: `rtl-sdr lame`
 
-### Windows (MSYS2 / MinGW-w64)
+#### Windows (MSYS2 / MinGW-w64)
 
 Open the **MSYS2 MINGW64** shell:
 
 ```bash
 pacman -S --needed mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja \
   mingw-w64-x86_64-pkgconf mingw-w64-x86_64-rtl-sdr mingw-w64-x86_64-lame
-# optional: mingw-w64-x86_64-airspy mingw-w64-x86_64-hackrf
+# optional: mingw-w64-x86_64-libairspy mingw-w64-x86_64-hackrf
 
 cmake -S . -B build -G Ninja
 ninja -C build

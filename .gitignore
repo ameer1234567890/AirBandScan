@@ -3,3 +3,5 @@ recordings/
 airband.conf
 log.txt
 AeroScan.jpg
+dist/
+build-ci-*/

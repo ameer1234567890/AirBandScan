@@ -1,0 +1,185 @@
+# Builds AirBandScan for Windows (x64, x86), Linux (x86_64, i386) and
+# Raspberry Pi (arm64, armhf).
+#
+#   push to main / pull request  -> build everything, keep the packages as workflow artifacts
+#   push a tag "v1.2.3"          -> build everything and publish a GitHub Release
+#   Actions tab "Run workflow"   -> manual build
+#
+# To make a release:  git tag v1.0.0 && git push origin v1.0.0
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Linux + Raspberry Pi: built inside debian:bookworm (glibc 2.36, the base
+  # of current Raspberry Pi OS): runs on Debian 12+, Ubuntu 23.04+ / 24.04, Pi OS 12+.
+  # ARM builds run under QEMU emulation.
+  # -------------------------------------------------------------------------
+  linux:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            platform: linux/amd64
+          - name: linux-i386
+            platform: linux/386
+          - name: raspberrypi-arm64   # Pi 3 / 4 / 5 / Zero 2 W with 64-bit OS
+            platform: linux/arm64
+          - name: raspberrypi-armhf   # Pi 2 / 3 / 4 / 5 with 32-bit OS (ARMv7)
+            platform: linux/arm/v7
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="dev-${GITHUB_SHA::7}"; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Set up QEMU
+        if: startsWith(matrix.platform, 'linux/arm')
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build in debian:bookworm (${{ matrix.platform }})
+        run: |
+          docker run --rm --platform ${{ matrix.platform }} \
+            -v "$PWD":/src -w /src debian:bookworm \
+            bash scripts/ci-build-linux.sh "${{ matrix.name }}" "$VERSION"
+          sudo chown -R "$(id -u):$(id -g)" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: airbandscan-${{ matrix.name }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  # -------------------------------------------------------------------------
+  # Windows: MSYS2 / MinGW-w64 (the toolchain AirScope uses). Every DLL the
+  # exe needs, plus LAME for MP3, is zipped next to airbandscan.exe.
+  # -------------------------------------------------------------------------
+  windows:
+    name: ${{ matrix.name }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            msystem: MINGW64
+          - name: windows-x86
+            msystem: MINGW32
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: zip
+          pacboy: >-
+            toolchain:p cmake:p ninja:p pkgconf:p rtl-sdr:p
+
+      - name: Optional packages (MP3, Airspy, HackRF)
+        run: |
+          for p in lame libairspy hackrf; do
+            pacman -S --needed --noconfirm "${MINGW_PACKAGE_PREFIX}-$p" \
+              || echo "::warning::${MINGW_PACKAGE_PREFIX}-$p not available, building without it"
+          done
+
+      - name: Version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="dev-${GITHUB_SHA::7}"; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION="$VERSION"
+          ninja -C build airbandscan
+          ./build/airbandscan.exe --help | head -1
+
+      - name: Package
+        run: |
+          pkg="airbandscan-$VERSION-${{ matrix.name }}"
+          mkdir -p "dist/$pkg"
+          cp build/airbandscan.exe README.md LICENSE airband.conf.example "dist/$pkg/"
+          # LAME is loaded at run time (not linked), so add it explicitly.
+          extra=""
+          [ -f "$MINGW_PREFIX/bin/libmp3lame-0.dll" ] && extra="$MINGW_PREFIX/bin/libmp3lame-0.dll"
+          # Copy every MinGW DLL the exe (and LAME) depend on.
+          for f in build/airbandscan.exe $extra; do
+            ldd "$f" | awk '{print $3}' | grep -i "^$MINGW_PREFIX/" || true
+          done | sort -u | while read -r dll; do cp "$dll" "dist/$pkg/"; done
+          [ -n "$extra" ] && cp "$extra" "dist/$pkg/"
+          printf '%s\r\n' \
+            "AirBandScan $VERSION (${{ matrix.name }})" "" \
+            "1. RTL-SDR: install the WinUSB driver once with Zadig (https://zadig.akeo.ie/)." \
+            "2. Double-click airbandscan.exe (allow it through the firewall if asked)." \
+            "3. Open http://localhost:8080/ in your browser." \
+            > "dist/$pkg/INSTALL.txt"
+          ls -la "dist/$pkg"
+          (cd dist && zip -qr "$pkg.zip" "$pkg" && rm -rf "$pkg")
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: airbandscan-${{ matrix.name }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  # -------------------------------------------------------------------------
+  # Publish a GitHub Release for tags (packages that built are attached even
+  # if one platform failed; the failed job stays red in the Actions tab).
+  # -------------------------------------------------------------------------
+  release:
+    name: GitHub Release
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') }}
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: airbandscan-*
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd dist
+          ls -la
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## Downloads
+
+            | System | File |
+            |---|---|
+            | Windows 64-bit | `airbandscan-*-windows-x64.zip` |
+            | Windows 32-bit | `airbandscan-*-windows-x86.zip` |
+            | Linux 64-bit (x86_64) | `airbandscan-*-linux-x86_64.tar.gz` |
+            | Linux 32-bit (i386) | `airbandscan-*-linux-i386.tar.gz` |
+            | Raspberry Pi 64-bit OS (Pi 3 / 4 / 5 / Zero 2 W) | `airbandscan-*-raspberrypi-arm64.tar.gz` |
+            | Raspberry Pi 32-bit OS (Pi 2 / 3 / 4 / 5) | `airbandscan-*-raspberrypi-armhf.tar.gz` |
+
+            **Windows:** unzip, install the RTL-SDR WinUSB driver with [Zadig](https://zadig.akeo.ie/), run `airbandscan.exe`.
+            **Linux / Raspberry Pi:** `sudo apt install librtlsdr0 libairspy0 libhackrf0 libmp3lame0`, extract, run `./airbandscan`.
+            Then open **http://localhost:8080/**.
