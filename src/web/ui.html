@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AirBandScan</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f766e'/%3E%3Cpath d='M6 20c3-9 5-9 7 0s4 9 7 0 4-9 6 0' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f4f6f8;--panel:#ffffff;--panel2:#eef1f4;--line:#dde2e8;--text:#17202a;--muted:#5f6b7a;
+  --accent:#0f766e;--accent-2:#14b8a6;--accent-ink:#ffffff;--warn:#b45309;--warn-bg:#fef3c7;
+  --danger:#b91c1c;--ok:#15803d;--live:#dc2626;--chip:#e6f4f1;--chip-ink:#0f5f58;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+  --spec-bg:#0b1220;--spec-grid:#1e293b;--spec-line:#5eead4;--spec-noise:#94a3b8;--spec-thr:#f59e0b;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0b0f14;--panel:#121820;--panel2:#18202b;--line:#253041;--text:#e6edf3;--muted:#8b98a9;
+    --accent:#14b8a6;--accent-2:#2dd4bf;--accent-ink:#04201d;--warn:#fbbf24;--warn-bg:#3a2a07;
+    --danger:#f87171;--ok:#4ade80;--live:#f87171;--chip:#0f2a27;--chip-ink:#5eead4;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0b0f14;--panel:#121820;--panel2:#18202b;--line:#253041;--text:#e6edf3;--muted:#8b98a9;
+  --accent:#14b8a6;--accent-2:#2dd4bf;--accent-ink:#04201d;--warn:#fbbf24;--warn-bg:#3a2a07;
+  --danger:#f87171;--ok:#4ade80;--live:#f87171;--chip:#0f2a27;--chip-ink:#5eead4;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+/* ---- top bar ---- */
+header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.bar{max-width:1280px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;font-size:16px;letter-spacing:.2px}
+.brand svg{flex:none}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav a{padding:7px 12px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:550;display:flex;gap:6px;align-items:center}
+nav a:hover{background:var(--panel2);color:var(--text)}
+nav a.on{background:var(--chip);color:var(--chip-ink)}
+.count{font-size:12px;background:var(--panel2);color:var(--muted);border-radius:99px;padding:0 7px;line-height:18px}
+nav a.on .count{background:var(--accent);color:var(--accent-ink)}
+.spacer{flex:1}
+.status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;min-width:0}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.dot.run{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+.dot.err{background:var(--danger)}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:550;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--panel2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:4px 9px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:default}
+.icon{width:16px;height:16px;flex:none}
+
+main{max-width:1280px;margin:0 auto;padding:16px}
+.page{display:none}.page.on{display:block}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.panel h2{font-size:14px;margin:0;font-weight:650}
+.phead{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.phead .sub{color:var(--muted);font-size:13px}
+.pbody{padding:14px}
+.grid{display:grid;gap:16px}
+
+/* ---- on air ---- */
+.onair{display:flex;gap:10px;flex-wrap:wrap;align-items:center;min-height:34px}
+.onair .none{color:var(--muted)}
+.live{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:4px 12px 4px 8px}
+.live .pulse{width:8px;height:8px;border-radius:50%;background:var(--live);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.meter{width:46px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent-2)}
+
+/* ---- toolbar ---- */
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tools label{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+select,input[type=text],input[type=number]{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-width:0}
+input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+
+/* ---- recordings list ---- */
+.day{padding:8px 14px;background:var(--panel2);color:var(--muted);font-size:12px;font-weight:650;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--line)}
+.rec{display:grid;grid-template-columns:40px 92px 110px 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.rec:last-child{border-bottom:0}
+.rec.playing{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.rec.fresh{animation:fresh 2.5s}
+@keyframes fresh{from{background:color-mix(in srgb,var(--accent-2) 25%,transparent)}}
+.play{width:36px;height:36px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;cursor:pointer}
+.play:hover{filter:brightness(1.1)}
+.time{font-weight:600}
+.time small{display:block;color:var(--muted);font-weight:400}
+.freq{font-weight:650;font-size:15px}
+.freq small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.wave{position:relative;height:36px;border-radius:6px;background:var(--panel2);overflow:hidden;cursor:pointer}
+.wave canvas{position:absolute;inset:0;width:100%;height:100%}
+.wave .prog{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb,var(--accent) 22%,transparent);width:0;pointer-events:none}
+.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.tag{font-size:12px;border-radius:6px;padding:1px 7px;background:var(--chip);color:var(--chip-ink);white-space:nowrap}
+.tag.warn{background:var(--warn-bg);color:var(--warn)}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.more{display:flex;justify-content:center;padding:12px}
+
+/* ---- spectrum ---- */
+.specwrap{position:relative;background:var(--spec-bg);border-radius:8px;overflow:hidden}
+canvas.spec{display:block;width:100%;height:220px}
+canvas.wf{display:block;width:100%;height:220px}
+canvas.hist{display:block;width:100%;height:340px}
+.legend{display:flex;gap:14px;color:var(--muted);font-size:12px;flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.windows{display:flex;gap:6px;flex-wrap:wrap}
+.wbtn{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer}
+.wbtn.cur{border-color:var(--accent);color:var(--accent);font-weight:650}
+.wbtn.sel{background:var(--chip);color:var(--chip-ink)}
+.tip{position:absolute;pointer-events:none;background:rgba(2,6,23,.85);color:#e2e8f0;font-size:12px;padding:3px 7px;border-radius:6px;display:none;white-space:nowrap}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.card .spg{position:relative;background:var(--spec-bg);height:130px}
+.card .spg canvas{width:100%;height:100%;display:block}
+.card .spg .ax{position:absolute;right:6px;top:4px;font-size:11px;color:#cbd5e1;text-shadow:0 1px 2px #000}
+.card .spg .prog{position:absolute;top:0;bottom:0;left:0;width:2px;background:#fff;opacity:0;pointer-events:none}
+.card .info{padding:10px 12px;display:grid;gap:6px}
+.card .row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.card .reason{color:var(--muted);font-size:13px}
+
+/* ---- settings ---- */
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.field{display:grid;grid-template-columns:170px 1fr;gap:10px;align-items:center;padding:7px 0}
+.field>span{color:var(--muted);font-size:13px}
+.field input[type=text],.field input[type=number],.field select{width:100%}
+.field .hint{grid-column:2;color:var(--muted);font-size:12px;margin-top:-4px}
+.inline{display:flex;gap:8px;align-items:center}
+.savebar{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:16px;border-radius:var(--radius)}
+.msg{color:var(--muted);font-size:13px}
+.msg.err{color:var(--danger)}
+.msg.ok{color:var(--ok)}
+.banner{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:none}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.on{opacity:.95}
+
+@media (max-width:760px){
+  .rec{grid-template-columns:40px 1fr auto;grid-template-areas:"p t f" "w w w" "a a a";row-gap:8px}
+  .rec .play{grid-area:p}.rec .time{grid-area:t}.rec .freq{grid-area:f;text-align:right}
+  .rec .wave{grid-area:w}.rec .acts{grid-area:a;justify-content:flex-start}
+  .field{grid-template-columns:1fr}.field .hint{grid-column:1}
+  .status .txt{display:none}
+  .cards{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M6 20c3-9 5-9 7 0s4 9 7 0 4-9 6 0" stroke="var(--accent-ink)" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>
+      AirBandScan
+    </div>
+    <nav>
+      <a href="#voice" data-page="voice">Voice recordings <span class="count" id="cVoice">0</span></a>
+      <a href="#spectrum" data-page="spectrum">Spectrum &amp; undecoded <span class="count" id="cOther">0</span></a>
+      <a href="#settings" data-page="settings">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="status"><span class="dot" id="sDot"></span><span class="txt" id="sTxt">Connecting…</span></div>
+    <button class="btn" id="runBtn">Start</button>
+    <button class="btn sm" id="themeBtn" title="Toggle light / dark">◐</button>
+  </div>
+</header>
+
+<main>
+  <div class="banner" id="errBanner"></div>
+
+  <!-- ================= VOICE ================= -->
+  <section class="page" id="page-voice">
+    <div class="grid">
+      <div class="panel">
+        <div class="phead"><h2>On air now</h2><span class="sub" id="scanInfo"></span></div>
+        <div class="pbody"><div class="onair" id="onair"><span class="none">Listening…</span></div></div>
+      </div>
+      <div class="panel">
+        <div class="phead">
+          <h2>Voice recordings</h2><span class="sub" id="vTotal"></span>
+          <div class="spacer"></div>
+          <div class="tools">
+            <label>Frequency <select id="vFreq"><option value="">All</option></select></label>
+            <label><input type="checkbox" id="autoPlay"> Auto-play new calls</label>
+          </div>
+        </div>
+        <div id="vList"></div>
+        <div class="more" id="vMore" hidden><button class="btn">Load more</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SPECTRUM ================= -->
+  <section class="page" id="page-spectrum">
+    <div class="grid">
+      <div class="panel">
+        <div class="phead">
+          <h2>Live spectrum</h2><span class="sub mono" id="specInfo"></span>
+          <div class="spacer"></div>
+          <div class="legend"><span><i style="background:var(--spec-line)"></i>signal</span><span><i style="background:var(--spec-noise)"></i>learned noise</span><span><i style="background:var(--spec-thr)"></i>start level</span></div>
+        </div>
+        <div class="pbody grid" style="gap:8px">
+          <div class="specwrap"><canvas class="spec" id="spec"></canvas><div class="tip" id="specTip"></div></div>
+          <div class="specwrap"><canvas class="wf" id="wf"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="phead">
+          <h2>Activity history</h2><span class="sub">one row per second while the scanner is on that range · boxes mark transmissions</span>
+          <div class="spacer"></div>
+          <div class="windows" id="winBtns"></div>
+        </div>
+        <div class="pbody"><div class="specwrap"><canvas class="hist" id="hist"></canvas><div class="tip" id="histTip"></div></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="phead">
+          <h2>Not decoded as voice</h2><span class="sub" id="oTotal"></span>
+          <div class="spacer"></div>
+          <div class="tools">
+            <label>Frequency <select id="oFreq"><option value="">All</option></select></label>
+            <button class="btn sm danger" id="clearOther">Delete all</button>
+          </div>
+        </div>
+        <div class="pbody">
+          <div class="cards" id="oList"></div>
+          <div class="more" id="oMore" hidden><button class="btn">Load more</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="page" id="page-settings">
+    <form id="cfgForm" autocomplete="off">
+      <div class="form">
+        <div class="panel"><div class="phead"><h2>SDR device</h2></div><div class="pbody">
+          <label class="field"><span>Device type</span><select name="device" id="fDevice"></select></label>
+          <label class="field"><span>Device</span><span class="inline"><select name="device_index" id="fIndex"><option value="0">#0</option></select><button type="button" class="btn sm" id="detectBtn">Detect</button></span></label>
+          <label class="field dev-hw"><span>Sample rate (S/s)</span><select name="sample_rate" id="fRate"></select></label>
+          <label class="field dev-hw"><span>Gain (dB)</span><span class="inline"><input type="number" name="gain_db" step="0.1" min="-1" max="100" style="width:110px"><span class="msg">-1 = automatic</span></span></label>
+          <label class="field dev-hw"><span>Frequency correction (ppm)</span><input type="number" name="ppm" step="0.1"></label>
+          <label class="field dev-hw"><span>Bias-T</span><span><input type="checkbox" name="bias_tee"></span></label>
+          <label class="field dev-wav"><span>IQ WAV file</span><input type="text" name="wav_path" placeholder="/path/to/capture.wav"></label>
+          <label class="field dev-wav"><span>File centre (MHz)</span><input type="number" name="wav_center_mhz" step="0.0001"></label>
+        </div></div>
+
+        <div class="panel"><div class="phead"><h2>Scanning</h2></div><div class="pbody">
+          <label class="field"><span>Scan ranges (MHz)</span><input type="text" name="ranges" class="mono"></label>
+          <div class="field"><span></span><span class="hint">Comma separated, e.g. <span class="mono">118-121.5, 123-125</span>. Ranges wider than the sample rate are hopped.</span></div>
+          <label class="field"><span>Ignore (MHz)</span><input type="text" name="ignored" class="mono"></label>
+          <div class="field"><span></span><span class="hint">Single channels or ranges never recorded (ACARS, VDL2, ATIS…).</span></div>
+          <label class="field"><span>Channel raster</span><select name="channel_step_khz"><option value="8.333333">8.33 kHz</option><option value="25">25 kHz</option><option value="12.5">12.5 kHz</option><option value="5">5 kHz</option><option value="0">off</option></select></label>
+          <label class="field"><span>Channel width (kHz)</span><input type="number" name="channel_bw_khz" step="0.5" min="3" max="25"></label>
+          <label class="field"><span>Start level (dB over noise)</span><input type="number" name="start_level_db" step="0.5"></label>
+          <label class="field"><span>Stop level (dB over noise)</span><input type="number" name="stop_level_db" step="0.5"></label>
+          <label class="field"><span>Dwell per range (ms)</span><input type="number" name="dwell_ms" step="50"></label>
+          <label class="field"><span>End after silence (ms)</span><input type="number" name="timeout_ms" step="100"></label>
+          <label class="field"><span>Minimum length (ms)</span><input type="number" name="min_duration_ms" step="100"></label>
+          <label class="field"><span>Maximum length (s)</span><input type="number" name="max_duration_s" step="5"></label>
+          <label class="field"><span>Pre-roll (ms)</span><input type="number" name="preroll_ms" step="50"></label>
+          <label class="field"><span>Noise learning (ms)</span><input type="number" name="noise_learn_ms" step="100"></label>
+        </div></div>
+
+        <div class="panel"><div class="phead"><h2>Voice detection &amp; output</h2></div><div class="pbody">
+          <label class="field"><span>Voice threshold</span><span class="inline"><input type="range" name="voice_threshold" min="0" max="1" step="0.05" id="fThr" style="flex:1"><span class="mono" id="fThrV"></span></span></label>
+          <div class="field"><span></span><span class="hint">Score needed to count as voice. Lower keeps more (and more noise).</span></div>
+          <label class="field"><span>Recordings folder</span><input type="text" name="recordings_dir"></label>
+          <label class="field"><span>Save MP3 automatically</span><span class="inline"><input type="checkbox" name="mp3_auto"><span class="msg" id="mp3Backend"></span></span></label>
+          <label class="field"><span>MP3 bitrate</span><select name="mp3_bitrate"><option>16</option><option>24</option><option>32</option><option>48</option><option>64</option></select></label>
+          <label class="field"><span>Keep non-voice signals</span><span><input type="checkbox" name="keep_other"></span></label>
+          <label class="field"><span>Delete after (days)</span><input type="number" name="retention_days" min="0" step="1"></label>
+          <div class="field"><span></span><span class="hint">0 keeps recordings forever.</span></div>
+        </div></div>
+
+        <div class="panel"><div class="phead"><h2>Web interface</h2></div><div class="pbody">
+          <label class="field"><span>Listen address</span><input type="text" name="http_bind"></label>
+          <label class="field"><span>Port</span><input type="number" name="http_port" min="1" max="65535"></label>
+          <div class="field"><span></span><span class="hint">Address and port changes apply after a program restart.</span></div>
+          <label class="field"><span>Start scanning on launch</span><span><input type="checkbox" name="autostart"></span></label>
+        </div></div>
+      </div>
+      <div class="savebar"><span class="msg" id="cfgMsg"></span><button type="button" class="btn" id="cfgReset">Revert</button><button type="submit" class="btn primary">Save &amp; restart scanner</button></div>
+    </form>
+  </section>
+</main>
+<audio id="player" preload="none"></audio>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtF = hz => { let s = (hz / 1e6).toFixed(4); if (s.endsWith("0")) s = s.slice(0, -1); return s; };
+const fmtDur = ms => { const s = ms / 1000; return s < 60 ? s.toFixed(1) + " s" : Math.floor(s / 60) + ":" + String(Math.round(s % 60)).padStart(2, "0"); };
+const fmtTime = t => new Date(t).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"});
+const ago = t => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 60 ? Math.round(s) + "s ago" : s < 3600 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago"; };
+const dayLabel = t => { const d = new Date(t), n = new Date(); const k = x => x.toDateString();
+  if (k(d) === k(n)) return "Today"; const y = new Date(n); y.setDate(n.getDate() - 1); if (k(d) === k(y)) return "Yesterday";
+  return d.toLocaleDateString([], {weekday: "short", day: "numeric", month: "short", year: "numeric"}); };
+const api = async (path, opts) => { const r = await fetch(path, opts); if (!r.ok && r.headers.get("content-type") !== "application/json") throw new Error(await r.text()); return r.json(); };
+const post = (path, body) => api(path, {method: "POST", body: body || "", headers: {"Content-Type": "application/x-www-form-urlencoded"}});
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2200); }
+const ICON = {
+  play: '<svg class="icon" viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>',
+  pause: '<svg class="icon" viewBox="0 0 16 16"><path d="M4 2.5h3v11H4zm5 0h3v11H9z" fill="currentColor"/></svg>',
+  dl: '<svg class="icon" viewBox="0 0 16 16"><path d="M8 2v8m-3.5-3L8 10.5 11.5 7M3 13.5h10" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  del: '<svg class="icon" viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linejoin="round"/></svg>',
+};
+
+// ---------- theme ----------
+(function () {
+  let t = null; try { t = localStorage.getItem("airbandscan-theme"); } catch (e) {}
+  if (t) document.documentElement.dataset.theme = t;
+  $("#themeBtn").onclick = () => {
+    const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const nx = cur === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = nx; try { localStorage.setItem("airbandscan-theme", nx); } catch (e) {}
+  };
+})();
+
+// ---------- colour map (perceptual, dark -> bright) ----------
+const CMAP = (() => {
+  const stops = [[0, [8, 12, 32]], [.25, [42, 22, 105]], [.5, [158, 38, 112]], [.72, [236, 96, 52]], [.88, [250, 176, 40]], [1, [252, 250, 190]]];
+  const lut = new Uint8ClampedArray(256 * 3);
+  for (let i = 0; i < 256; i++) { const x = i / 255; let k = 0; while (k < stops.length - 2 && x > stops[k + 1][0]) k++;
+    const [x0, c0] = stops[k], [x1, c1] = stops[k + 1], f = (x - x0) / (x1 - x0);
+    for (let j = 0; j < 3; j++) lut[i * 3 + j] = c0[j] + (c1[j] - c0[j]) * f; }
+  return lut;
+})();
+function fitCanvas(c) { const r = c.getBoundingClientRect(), d = devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } return [w, h, d]; }
+
+// ---------- router ----------
+let page = "voice";
+function route() {
+  page = (location.hash || "#voice").slice(1);
+  if (!["voice", "spectrum", "settings"].includes(page)) page = "voice";
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + page));
+  document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.page === page));
+  if (page === "settings") loadConfig();
+  if (page === "spectrum") { histDirty = true; loadOther(true); }
+  if (page === "voice") loadVoice(true);
+}
+addEventListener("hashchange", route);
+
+// ---------- shared audio player ----------
+const player = $("#player");
+let playingId = null;
+function playRec(id, row) {
+  if (playingId === id && !player.paused) { player.pause(); return; }
+  if (playingId !== id) { player.src = "/rec/" + id + ".wav"; playingId = id; }
+  player.play().catch(e => toast("Cannot play: " + e.message));
+}
+function syncPlayer() {
+  document.querySelectorAll("[data-rec]").forEach(r => {
+    const on = r.dataset.rec === playingId, active = on && !player.paused;
+    r.classList.toggle("playing", active);
+    const b = r.querySelector(".play"); if (b) b.innerHTML = active ? ICON.pause : ICON.play;
+    const p = r.querySelector(".prog");
+    if (p) { const f = on && player.duration ? player.currentTime / player.duration : 0;
+      if (p.parentElement.classList.contains("spg")) { p.style.left = (f * 100) + "%"; p.style.opacity = on ? 1 : 0; }
+      else p.style.width = (f * 100) + "%"; }
+  });
+}
+["play", "pause", "timeupdate", "ended", "loadedmetadata"].forEach(ev => player.addEventListener(ev, syncPlayer));
+player.addEventListener("ended", () => { if (autoQueue.length) { const n = autoQueue.shift(); playRec(n); } });
+function seek(id, frac) { if (playingId !== id) { playRec(id); player.addEventListener("loadedmetadata", () => { player.currentTime = frac * player.duration; }, {once: true}); }
+  else if (player.duration) player.currentTime = frac * player.duration; }
+
+// waveform thumbnails, decoded once per recording and cached
+const waveCache = new Map();
+let audioCtx = null;
+async function drawWave(id, canvas) {
+  let peaks = waveCache.get(id);
+  if (!peaks) {
+    try {
+      const buf = await (await fetch("/rec/" + id + ".wav")).arrayBuffer();
+      const dv = new DataView(buf); let off = 12, data = null;
+      while (off + 8 <= buf.byteLength) { const tag = String.fromCharCode(dv.getUint8(off), dv.getUint8(off + 1), dv.getUint8(off + 2), dv.getUint8(off + 3));
+        const sz = dv.getUint32(off + 4, true); if (tag === "data") { data = new Int16Array(buf, off + 8, Math.min(sz, buf.byteLength - off - 8) >> 1); break; } off += 8 + sz + (sz & 1); }
+      const N = 220; peaks = new Float32Array(N);
+      if (data && data.length) { const step = data.length / N; for (let i = 0; i < N; i++) { let m = 0; const a = Math.floor(i * step), b = Math.floor((i + 1) * step);
+        for (let k = a; k < b; k++) { const v = Math.abs(data[k]); if (v > m) m = v; } peaks[i] = m / 32768; } }
+      waveCache.set(id, peaks);
+    } catch (e) { return; }
+  }
+  const [w, h] = fitCanvas(canvas), g = canvas.getContext("2d");
+  g.clearRect(0, 0, w, h); g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  const bw = w / peaks.length;
+  for (let i = 0; i < peaks.length; i++) { const ph = Math.max(1, peaks[i] * (h - 4)); g.fillRect(i * bw, (h - ph) / 2, Math.max(1, bw - 1), ph); }
+}
+
+// ---------- status ----------
+let status = null, storeVersion = -1, lastVoiceTop = null;
+const autoQueue = [];
+async function pollStatus() {
+  try {
+    status = await api("/api/status");
+    const run = status.running, err = status.error;
+    $("#sDot").className = "dot " + (run ? "run" : err ? "err" : "");
+    let txt = run ? "Scanning" : err ? "Error" : "Stopped";
+    if (run && status.windows.length) { const w = status.windows[status.window];
+      txt += " " + fmtF(w.lo) + "–" + fmtF(w.hi) + " MHz" + (status.windows.length > 1 ? " (" + (status.window + 1) + "/" + status.windows.length + ")" : ""); }
+    $("#sTxt").textContent = txt;
+    $("#runBtn").textContent = run ? "Stop" : "Start";
+    $("#runBtn").className = "btn" + (run ? "" : " primary");
+    const b = $("#errBanner"); b.style.display = err ? "block" : "none"; if (err) b.textContent = "Scanner: " + err + " — check Settings.";
+    $("#cVoice").textContent = status.voiceCount; $("#cOther").textContent = status.otherCount;
+    $("#scanInfo").textContent = run ? status.device + " · " + (status.fs / 1e6).toFixed(3) + " MS/s · " + status.detections + " detections this session" + (status.drops ? " · " + status.drops + " dropped blocks" : "") : "";
+    renderOnAir();
+    if (status.storeVersion !== storeVersion) { storeVersion = status.storeVersion;
+      if (page === "voice") loadVoice(false); if (page === "spectrum") { loadOther(false); histDirty = true; }
+      loadFreqs(); }
+  } catch (e) { $("#sDot").className = "dot err"; $("#sTxt").textContent = "Disconnected"; }
+}
+$("#runBtn").onclick = async () => {
+  const stop = status && status.running; $("#runBtn").disabled = true;
+  try { const r = await post(stop ? "/api/stop" : "/api/start"); if (!stop && !r.ok) toast("Start failed: " + r.error); }
+  finally { $("#runBtn").disabled = false; pollStatus(); }
+};
+function renderOnAir() {
+  const box = $("#onair"); const live = (status && status.live) || [];
+  if (!status || !status.running) { box.innerHTML = '<span class="none">Scanner stopped.</span>'; return; }
+  if (!live.length) { box.innerHTML = '<span class="none">Listening… nothing on air right now.</span>'; return; }
+  box.innerHTML = live.map(l => `<span class="live"><span class="pulse"></span><b class="mono">${fmtF(l.f)}</b>
+    <span class="mono" style="color:var(--muted)">${fmtDur(Date.now() - l.t)}</span>
+    <span class="meter" title="+${l.rel} dB"><i style="width:${Math.min(100, l.a * 250)}%"></i></span></span>`).join("");
+}
+
+// ---------- frequency filters ----------
+async function loadFreqs() {
+  for (const [kind, sel] of [["voice", "#vFreq"], ["other", "#oFreq"]]) {
+    try { const list = await api("/api/frequencies?kind=" + kind); const s = $(sel), cur = s.value;
+      s.innerHTML = '<option value="">All</option>' + list.sort((a, b) => b.n - a.n).map(x => `<option value="${(x.f / 1e6).toFixed(4)}">${fmtF(x.f)} MHz (${x.n})</option>`).join("");
+      s.value = cur; } catch (e) {}
+  }
+}
+$("#vFreq").onchange = () => loadVoice(true);
+$("#oFreq").onchange = () => loadOther(true);
+
+// ---------- voice list ----------
+let vItems = [], vLimit = 50;
+async function loadVoice(reset) {
+  if (reset) vLimit = 50;
+  const f = $("#vFreq").value;
+  const d = await api(`/api/recordings?kind=voice&limit=${vLimit}` + (f ? "&freq=" + f : ""));
+  const prevIds = new Set(vItems.map(x => x.id));
+  const isUpdate = vItems.length > 0 && !reset;
+  vItems = d.items;
+  $("#vTotal").textContent = d.total ? d.total + " total" : "";
+  $("#vMore").hidden = d.items.length >= d.total;
+  const list = $("#vList");
+  if (!vItems.length) { list.innerHTML = '<div class="empty">No voice recordings yet. Calls appear here automatically as they are received.</div>'; return; }
+  list.innerHTML = "";
+  let day = null;
+  for (const r of vItems) {
+    const dl = dayLabel(r.t); if (dl !== day) { day = dl; list.append(el("div", "day", esc(dl))); }
+    const row = el("div", "rec" + (isUpdate && !prevIds.has(r.id) ? " fresh" : "")); row.dataset.rec = r.id;
+    row.innerHTML = `<button class="play" title="Play">${ICON.play}</button>
+      <div class="time mono">${fmtTime(r.t)}<small>${ago(r.t)}</small></div>
+      <div class="freq mono">${fmtF(r.f)}<small>${fmtDur(r.d)} · +${Math.round(r.pk)} dB</small></div>
+      <div class="wave" title="Click to seek"><canvas></canvas><div class="prog"></div></div>
+      <div class="acts">
+        <span class="tag" title="${esc(r.r)}">${r.m ? "manual" : "score " + r.s.toFixed(2)}</span>
+        <a class="btn sm" href="/rec/${r.id}.mp3?dl=1" title="Download MP3">${ICON.dl}MP3</a>
+        <a class="btn sm" href="/rec/${r.id}.wav?dl=1" title="Download WAV">${ICON.dl}WAV</a>
+        <button class="btn sm" data-act="notvoice" title="Move to 'not decoded'">Not voice</button>
+        <button class="btn sm danger" data-act="del" title="Delete">${ICON.del}</button>
+      </div>`;
+    row.querySelector(".play").onclick = () => playRec(r.id);
+    const wv = row.querySelector(".wave");
+    wv.onclick = e => { const b = wv.getBoundingClientRect(); seek(r.id, (e.clientX - b.left) / b.width); };
+    row.querySelector('[data-act="notvoice"]').onclick = async () => { await post(`/api/rec/${r.id}/voice?v=0`); toast("Moved to not decoded"); pollStatus(); };
+    row.querySelector('[data-act="del"]').onclick = async () => { if (!confirm("Delete this recording?")) return; if (playingId === r.id) { player.pause(); playingId = null; } await post(`/api/rec/${r.id}/delete`); pollStatus(); };
+    list.append(row);
+    drawWave(r.id, wv.querySelector("canvas"));
+  }
+  // Auto-play newly arrived calls (oldest first).
+  if ($("#autoPlay").checked && isUpdate) {
+    const fresh = vItems.filter(x => !prevIds.has(x.id)).reverse().map(x => x.id);
+    for (const id of fresh) { if (player.paused && !autoQueue.length) playRec(id); else autoQueue.push(id); }
+  }
+  syncPlayer();
+}
+$("#vMore").querySelector("button").onclick = () => { vLimit += 50; loadVoice(false); };
+(function () { let a = null; try { a = localStorage.getItem("airbandscan-autoplay"); } catch (e) {} $("#autoPlay").checked = a === "1";
+  $("#autoPlay").onchange = e => { try { localStorage.setItem("airbandscan-autoplay", e.target.checked ? "1" : "0"); } catch (x) {} }; })();
+
+// ---------- not-decoded list ----------
+let oItems = [], oLimit = 30;
+async function loadOther(reset) {
+  if (reset) oLimit = 30;
+  const f = $("#oFreq").value;
+  const d = await api(`/api/recordings?kind=other&limit=${oLimit}` + (f ? "&freq=" + f : ""));
+  oItems = d.items;
+  $("#oTotal").textContent = d.total ? d.total + " total" : "";
+  $("#oMore").hidden = d.items.length >= d.total;
+  const list = $("#oList");
+  if (!oItems.length) { list.innerHTML = '<div class="empty" style="grid-column:1/-1">Nothing here. Signals that are detected but not recognised as speech (carriers, data, noise) show up here with their spectrogram.</div>'; return; }
+  list.innerHTML = "";
+  for (const r of oItems) {
+    const c = el("div", "card"); c.dataset.rec = r.id;
+    c.innerHTML = `<div class="spg"><canvas></canvas><span class="ax mono"></span><div class="prog"></div></div>
+      <div class="info">
+        <div class="row"><b class="mono" style="font-size:15px">${fmtF(r.f)} MHz</b><span class="mono" style="color:var(--muted)">${dayLabel(r.t)} ${fmtTime(r.t)} · ${fmtDur(r.d)}</span></div>
+        <div class="reason">${esc(r.r)}</div>
+        <div class="row"><span class="tag warn" title="voiced ${r.vf} · spread ${r.ls} dB · modulation ${r.md}">score ${r.s.toFixed(2)} · +${Math.round(r.pk)} dB</span>
+          <span class="acts">
+            <button class="play" style="width:30px;height:30px" title="Listen">${ICON.play}</button>
+            <a class="btn sm" href="/rec/${r.id}.mp3?dl=1" title="Download MP3">${ICON.dl}MP3</a>
+            <button class="btn sm" data-act="voice" title="Move to voice recordings">It's voice</button>
+            <button class="btn sm danger" data-act="del" title="Delete">${ICON.del}</button>
+          </span></div>
+      </div>`;
+    c.querySelector(".play").onclick = () => playRec(r.id);
+    const sp = c.querySelector(".spg");
+    sp.onclick = e => { const b = sp.getBoundingClientRect(); seek(r.id, (e.clientX - b.left) / b.width); };
+    c.querySelector('[data-act="voice"]').onclick = async () => { await post(`/api/rec/${r.id}/voice?v=1`); toast("Moved to voice recordings"); pollStatus(); };
+    c.querySelector('[data-act="del"]').onclick = async () => { if (playingId === r.id) { player.pause(); playingId = null; } await post(`/api/rec/${r.id}/delete`); pollStatus(); };
+    list.append(c); // must be in the DOM before drawing (canvas is sized from layout)
+    drawSpg(r.id, sp.querySelector("canvas"), sp.querySelector(".ax"));
+  }
+  syncPlayer();
+}
+$("#oMore").querySelector("button").onclick = () => { oLimit += 30; loadOther(false); };
+$("#clearOther").onclick = async () => { if (!confirm("Delete every recording in 'Not decoded as voice'?")) return; const r = await post("/api/recordings/delete?kind=other"); toast(r.deleted + " deleted"); pollStatus(); };
+
+// .spg spectrogram: x = time, y = frequency offset (+ up)
+const spgCache = new Map();
+async function drawSpg(id, canvas, axis) {
+  let s = spgCache.get(id);
+  if (!s) {
+    try { const buf = await (await fetch("/rec/" + id + ".spg")).arrayBuffer(); const dv = new DataView(buf);
+      s = {cols: dv.getUint32(4, true), rows: dv.getUint32(8, true), rps: dv.getFloat32(12, true), bin: dv.getFloat32(16, true),
+           lo: dv.getFloat32(20, true), hi: dv.getFloat32(24, true), cells: new Uint8Array(buf, 36)};
+      spgCache.set(id, s); } catch (e) { return; }
+  }
+  // Show +-6 kHz around the carrier (wide enough for AM voice sidebands).
+  const span = Math.min(s.cols, Math.round(12000 / s.bin)), c0 = Math.floor((s.cols - span) / 2);
+  const img = new ImageData(s.rows, span);
+  for (let r = 0; r < s.rows; r++) for (let k = 0; k < span; k++) {
+    const v = s.cells[r * s.cols + c0 + k], p = ((span - 1 - k) * s.rows + r) * 4;
+    img.data[p] = CMAP[v * 3]; img.data[p + 1] = CMAP[v * 3 + 1]; img.data[p + 2] = CMAP[v * 3 + 2]; img.data[p + 3] = 255; }
+  const tmp = document.createElement("canvas"); tmp.width = s.rows; tmp.height = span; tmp.getContext("2d").putImageData(img, 0, 0);
+  const [w, h] = fitCanvas(canvas), g = canvas.getContext("2d"); g.imageSmoothingEnabled = true; g.drawImage(tmp, 0, 0, w, h);
+  axis.textContent = "±" + (span * s.bin / 2000).toFixed(0) + " kHz · " + (s.rows / s.rps).toFixed(1) + " s";
+}
+
+// ---------- live spectrum + waterfall ----------
+let spec = null, wfRows = [], specWindow = -1;
+async function pollSpectrum() {
+  if (page !== "spectrum") return;
+  try { spec = await api("/api/spectrum"); } catch (e) { return; }
+  if (!spec.valid || !spec.db.length) return;
+  if (spec.window !== specWindow) { wfRows = []; specWindow = spec.window; }
+  drawSpec(); pushWf();
+  $("#specInfo").textContent = fmtF(spec.lo) + " – " + fmtF(spec.hi) + " MHz";
+}
+function freqTicks(lo, hi, w) { const span = hi - lo; const steps = [25e3, 50e3, 100e3, 200e3, 250e3, 500e3, 1e6, 2e6]; let st = steps.find(s => span / s <= w / 90) || 5e6;
+  const out = []; for (let f = Math.ceil(lo / st) * st; f <= hi; f += st) out.push(f); return out; }
+function drawSpec() {
+  const c = $("#spec"), [w, h, d] = fitCanvas(c), g = c.getContext("2d"), cs = getComputedStyle(document.documentElement);
+  const db = spec.db, nz = spec.noise, n = db.length;
+  let mn = Infinity, mx = -Infinity; for (const v of db) { if (v < mn) mn = v; if (v > mx) mx = v; }
+  if (nz.length) for (const v of nz) mn = Math.min(mn, v);
+  mn = Math.floor(mn / 10) * 10 - 5; mx = Math.max(mn + 30, Math.ceil(mx / 10) * 10 + 5);
+  const y = v => h - 18 * d - (v - mn) / (mx - mn) * (h - 26 * d), x = i => i / (n - 1) * w;
+  g.fillStyle = cs.getPropertyValue("--spec-bg"); g.fillRect(0, 0, w, h);
+  g.strokeStyle = cs.getPropertyValue("--spec-grid"); g.fillStyle = "#94a3b8"; g.font = `${11 * d}px ui-monospace,monospace`; g.lineWidth = 1;
+  for (let v = Math.ceil(mn / 10) * 10; v <= mx; v += 10) { g.beginPath(); g.moveTo(0, y(v)); g.lineTo(w, y(v)); g.stroke(); g.fillText(v + " dB", 4 * d, y(v) - 3 * d); }
+  for (const f of freqTicks(spec.lo, spec.hi, w / d)) { const px = (f - spec.lo) / (spec.hi - spec.lo) * w; g.beginPath(); g.moveTo(px, 0); g.lineTo(px, h - 16 * d); g.stroke(); g.fillText(fmtF(f), px + 3 * d, h - 4 * d); }
+  const line = (arr, color, off) => { g.strokeStyle = color; g.beginPath(); arr.forEach((v, i) => { const py = y(v + (off || 0)); i ? g.lineTo(x(i), py) : g.moveTo(x(i), py); }); g.stroke(); };
+  if (nz.length) { g.lineWidth = 1 * d; line(nz, cs.getPropertyValue("--spec-noise")); g.setLineDash([4 * d, 4 * d]); line(nz, cs.getPropertyValue("--spec-thr"), spec.start); g.setLineDash([]); }
+  g.lineWidth = 1.4 * d; line(db, cs.getPropertyValue("--spec-line"));
+  // live transmissions
+  for (const l of (status && status.live) || []) { if (l.f < spec.lo || l.f > spec.hi) continue;
+    const px = (l.f - spec.lo) / (spec.hi - spec.lo) * w; g.fillStyle = "rgba(248,113,113,.18)"; g.fillRect(px - 5 * d, 0, 10 * d, h - 16 * d);
+    g.fillStyle = "#fca5a5"; g.fillText(fmtF(l.f), px + 6 * d, 14 * d); }
+}
+function pushWf() {
+  const n = spec.db.length, lo = (spec.noise.length ? Math.min(...spec.noise) : Math.min(...spec.db)) - 3, hi = lo + 45;
+  const row = new Uint8ClampedArray(n * 4);
+  for (let i = 0; i < n; i++) { const v = Math.max(0, Math.min(255, Math.round((spec.db[i] - lo) / (hi - lo) * 255)));
+    row[i * 4] = CMAP[v * 3]; row[i * 4 + 1] = CMAP[v * 3 + 1]; row[i * 4 + 2] = CMAP[v * 3 + 2]; row[i * 4 + 3] = 255; }
+  wfRows.unshift(row); if (wfRows.length > 300) wfRows.pop();
+  const c = $("#wf"), [w, h] = fitCanvas(c), g = c.getContext("2d");
+  const img = new ImageData(n, wfRows.length); wfRows.forEach((r, k) => img.data.set(r, k * n * 4));
+  const tmp = document.createElement("canvas"); tmp.width = n; tmp.height = wfRows.length; tmp.getContext("2d").putImageData(img, 0, 0);
+  g.fillStyle = "#0b1220"; g.fillRect(0, 0, w, h); g.imageSmoothingEnabled = false;
+  g.drawImage(tmp, 0, 0, w, Math.min(h, wfRows.length * (h / 300)));
+}
+function specTip(e) {
+  if (!spec || !spec.valid) return; const c = $("#spec"), b = c.getBoundingClientRect(), fx = (e.clientX - b.left) / b.width;
+  const f = spec.lo + fx * (spec.hi - spec.lo), i = Math.round(fx * (spec.db.length - 1)), t = $("#specTip");
+  t.style.display = "block"; t.style.left = Math.min(b.width - 150, e.clientX - b.left + 12) + "px"; t.style.top = (e.clientY - b.top + 10) + "px";
+  t.textContent = fmtF(f) + " MHz · " + spec.db[i] + " dB" + (spec.noise.length ? " (+" + (spec.db[i] - spec.noise[i]).toFixed(1) + ")" : "");
+}
+$("#spec").addEventListener("mousemove", specTip); $("#spec").addEventListener("mouseleave", () => $("#specTip").style.display = "none");
+
+// ---------- activity history (sdr-monitor style) ----------
+let histWin = 0, histDirty = true, hist = null, histMarks = [];
+function renderWinBtns() {
+  const box = $("#winBtns"); if (!status || !status.windows) return;
+  const want = status.windows.map((w, i) => `${i}|${i === status.window}|${i === histWin}`).join(",");
+  if (box.dataset.k === want) return; box.dataset.k = want;
+  box.innerHTML = status.windows.length > 1 ? status.windows.map((w, i) => `<button class="wbtn${i === status.window ? " cur" : ""}${i === histWin ? " sel" : ""}" data-w="${i}" title="${w.ready ? "noise learned" : "learning noise"}">${fmtF(w.lo)}–${fmtF(w.hi)}</button>`).join("") : "";
+  box.querySelectorAll("button").forEach(b => b.onclick = () => { histWin = +b.dataset.w; histDirty = true; box.dataset.k = ""; renderWinBtns(); loadHistory(); });
+}
+async function loadHistory() {
+  if (page !== "spectrum") return; renderWinBtns();
+  try { const buf = await (await fetch("/api/history?w=" + histWin)).arrayBuffer(); const dv = new DataView(buf);
+    const cols = dv.getUint32(0, true), rows = dv.getUint32(4, true);
+    hist = {cols, rows, lo: dv.getFloat64(8, true), hi: dv.getFloat64(16, true), times: new Float64Array(buf.slice(24, 24 + rows * 8)), cells: new Uint8Array(buf, 24 + rows * 8)};
+  } catch (e) { return; }
+  if (hist.rows) { const since = hist.times[0];
+    try { const d = await api(`/api/recordings?kind=all&limit=1000`); histMarks = d.items.filter(r => r.t + r.d >= since - 1000 && r.f >= hist.lo && r.f <= hist.hi); } catch (e) {} }
+  drawHistory();
+}
+function drawHistory() {
+  const c = $("#hist"), [w, h, d] = fitCanvas(c), g = c.getContext("2d");
+  g.fillStyle = "#0b1220"; g.fillRect(0, 0, w, h);
+  g.fillStyle = "#94a3b8"; g.font = `${11 * d}px ui-monospace,monospace`;
+  if (!hist || !hist.rows) { g.fillText("No history yet for this range — rows are added every second while the scanner listens here.", 12 * d, 24 * d); return; }
+  const {cols, rows, cells} = hist; const img = new ImageData(cols, rows);
+  let lo = 255, hi = 0; for (let i = 0; i < cells.length; i += 7) { if (cells[i] < lo) lo = cells[i]; if (cells[i] > hi) hi = cells[i]; }
+  const sorted = Array.from(cells.filter((_, i) => i % 13 === 0)).sort((a, b) => a - b); lo = sorted[Math.floor(sorted.length * .2)] || lo; hi = Math.max(lo + 40, hi);
+  for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) { const v = Math.max(0, Math.min(255, Math.round((cells[r * cols + k] - lo) / (hi - lo) * 255)));
+    const p = ((rows - 1 - r) * cols + k) * 4; img.data[p] = CMAP[v * 3]; img.data[p + 1] = CMAP[v * 3 + 1]; img.data[p + 2] = CMAP[v * 3 + 2]; img.data[p + 3] = 255; }
+  const tmp = document.createElement("canvas"); tmp.width = cols; tmp.height = rows; tmp.getContext("2d").putImageData(img, 0, 0);
+  const left = 64 * d, bottom = 18 * d, pw = w - left, ph = h - bottom;
+  g.imageSmoothingEnabled = rows < ph; g.drawImage(tmp, left, 0, pw, ph);
+  // axes: time (newest at top), frequency
+  g.fillStyle = "#94a3b8"; g.strokeStyle = "rgba(148,163,184,.35)";
+  const ty = i => (rows - 1 - i + .5) / rows * ph;
+  const every = Math.max(1, Math.ceil(rows / (ph / (28 * d))));
+  for (let i = rows - 1; i >= 0; i -= every) g.fillText(fmtTime(hist.times[i]).slice(0, 8), 4 * d, ty(i) + 4 * d);
+  for (const f of freqTicks(hist.lo, hist.hi, pw / d)) { const px = left + (f - hist.lo) / (hist.hi - hist.lo) * pw; g.beginPath(); g.moveTo(px, ph); g.lineTo(px, ph + 4 * d); g.stroke(); g.fillText(fmtF(f), px + 2 * d, h - 4 * d); }
+  // transmission boxes: map start/end times onto rows
+  const rowAt = t => { let k = 0; while (k < rows - 1 && hist.times[k] < t) k++; return k; };
+  for (const m of histMarks) { const x = left + (m.f - hist.lo) / (hist.hi - hist.lo) * pw, r0 = rowAt(m.t), r1 = rowAt(m.t + m.d);
+    const y0 = ty(r1) - ph / rows / 2, y1 = ty(r0) + ph / rows / 2; g.lineWidth = 1.5 * d; g.strokeStyle = m.v ? "#4ade80" : "#fbbf24";
+    g.strokeRect(x - 5 * d, y0, 10 * d, Math.max(3 * d, y1 - y0)); m._box = [x - 6 * d, y0, x + 6 * d, y1]; }
+}
+$("#hist").addEventListener("mousemove", e => {
+  const c = $("#hist"), b = c.getBoundingClientRect(), d = devicePixelRatio || 1, px = (e.clientX - b.left) * d, py = (e.clientY - b.top) * d, t = $("#histTip");
+  const m = histMarks.find(m => m._box && px >= m._box[0] && px <= m._box[2] && py >= m._box[1] - 3 && py <= m._box[3] + 3);
+  if (!m && hist && hist.rows) { const left = 64 * d, pw = c.width - left; if (px < left) { t.style.display = "none"; return; }
+    t.textContent = fmtF(hist.lo + (px - left) / pw * (hist.hi - hist.lo)) + " MHz"; }
+  else if (m) t.textContent = `${fmtF(m.f)} MHz · ${fmtTime(m.t)} · ${fmtDur(m.d)} · ${m.v ? "voice" : "not voice"} — click to play`;
+  else { t.style.display = "none"; return; }
+  t.style.display = "block"; t.style.left = Math.min(b.width - 260, e.clientX - b.left + 12) + "px"; t.style.top = (e.clientY - b.top + 10) + "px";
+  c.style.cursor = m ? "pointer" : "crosshair";
+});
+$("#hist").addEventListener("mouseleave", () => $("#histTip").style.display = "none");
+$("#hist").addEventListener("click", e => { const c = $("#hist"), b = c.getBoundingClientRect(), d = devicePixelRatio || 1, px = (e.clientX - b.left) * d, py = (e.clientY - b.top) * d;
+  const m = histMarks.find(m => m._box && px >= m._box[0] && px <= m._box[2] && py >= m._box[1] - 3 && py <= m._box[3] + 3); if (m) playRec(m.id); });
+
+// ---------- settings ----------
+let cfgLoaded = null;
+const RATES = {rtlsdr: [1024000, 1400000, 1800000, 2048000, 2400000, 2560000, 2880000, 3200000], airspy: [2500000, 3000000, 6000000, 10000000],
+  sdrplay: [2000000, 3000000, 6000000, 8000000, 10000000], hackrf: [2000000, 4000000, 8000000, 10000000], wav: []};
+function devVisibility() { const dv = $("#fDevice").value; document.querySelectorAll(".dev-hw").forEach(e => e.style.display = dv === "wav" ? "none" : "");
+  document.querySelectorAll(".dev-wav").forEach(e => e.style.display = dv === "wav" ? "" : "none");
+  const rs = $("#fRate"), cur = rs.value || (cfgLoaded && cfgLoaded.sample_rate); rs.innerHTML = (RATES[dv] || []).map(r => `<option value="${r}">${(r / 1e6).toFixed(3)} MS/s</option>`).join("");
+  if ([...rs.options].some(o => o.value == cur)) rs.value = cur; else if (rs.options.length) rs.value = rs.options[Math.min(4, rs.options.length - 1)].value; }
+async function loadConfig() {
+  const d = await api("/api/config"); cfgLoaded = d.config; const f = $("#cfgForm");
+  $("#fDevice").innerHTML = d.devices.map(x => `<option value="${x}">${({rtlsdr: "RTL-SDR", airspy: "Airspy", sdrplay: "SDRplay", hackrf: "HackRF", wav: "IQ WAV file (test)"})[x] || x}</option>`).join("");
+  $("#mp3Backend").textContent = d.mp3 === "none" ? "LAME not found — install libmp3lame" : "encoder: " + d.mp3;
+  for (const [k, v] of Object.entries(d.config)) { const inp = f.elements[k]; if (!inp) continue;
+    if (inp.type === "checkbox") inp.checked = v === "1"; else if (inp.tagName === "SELECT" && k === "device_index") { inp.innerHTML = `<option value="${v}">#${v}</option>`; inp.value = v; } else inp.value = v; }
+  devVisibility(); if (d.config.sample_rate) $("#fRate").value = d.config.sample_rate;
+  const st = f.elements.channel_step_khz; if (![...st.options].some(o => o.value === st.value)) st.value = Math.abs(+st.value - 8.3333) < .01 ? "8.333333" : "0";
+  $("#fThrV").textContent = (+$("#fThr").value).toFixed(2); $("#cfgMsg").textContent = ""; $("#cfgMsg").className = "msg";
+}
+$("#fDevice").onchange = devVisibility;
+$("#fThr").oninput = () => $("#fThrV").textContent = (+$("#fThr").value).toFixed(2);
+$("#detectBtn").onclick = async () => { const list = await api("/api/devices?type=" + $("#fDevice").value), s = $("#fIndex");
+  if (!list.length) { toast("No devices found"); return; }
+  s.innerHTML = list.map(x => `<option value="${x.index}">#${x.index} ${esc(x.name)}${x.serial ? " (" + esc(x.serial) + ")" : ""}</option>`).join(""); toast(list.length + " device(s) found"); };
+$("#cfgReset").onclick = loadConfig;
+$("#cfgForm").onsubmit = async e => {
+  e.preventDefault(); const f = e.target, p = new URLSearchParams();
+  for (const inp of f.elements) { if (!inp.name) continue; if (inp.closest("label") && inp.closest("label").style.display === "none" && inp.name !== "device") continue;
+    p.append(inp.name, inp.type === "checkbox" ? (inp.checked ? "1" : "0") : inp.value); }
+  const m = $("#cfgMsg"); m.className = "msg"; m.textContent = "Saving…";
+  try { const r = await post("/api/config", p.toString());
+    if (!r.ok) { m.className = "msg err"; m.textContent = r.error; return; }
+    m.className = r.started ? "msg ok" : "msg err"; m.textContent = r.started ? "Saved — scanner restarted." : "Saved, but the scanner did not start: " + r.error;
+    pollStatus(); } catch (err) { m.className = "msg err"; m.textContent = String(err.message || err); }
+};
+
+// ---------- timers ----------
+route();
+pollStatus();
+setInterval(pollStatus, 1000);
+setInterval(pollSpectrum, 200);
+setInterval(() => { if (page === "spectrum") { renderWinBtns(); loadHistory(); } }, 5000);
+setInterval(() => { if (page === "voice") document.querySelectorAll("#vList .time small").forEach((s, i) => { if (vItems[i]) s.textContent = ago(vItems[i].t); }); }, 15000);
+addEventListener("resize", () => { if (page === "spectrum") { drawHistory(); if (spec) drawSpec(); } });
+</script>
+</body>
+</html>

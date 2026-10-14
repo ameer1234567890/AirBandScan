@@ -1,0 +1,31 @@
+# AirBandScan configuration (edited by the web UI)
+# Frequencies in MHz; ranges as lo-hi, comma separated.
+autostart = 1
+bias_tee = 0
+channel_bw_khz = 8
+channel_step_khz = 8.333333
+device = rtlsdr
+device_index = 0
+dwell_ms = 500
+gain_db = 40
+http_bind = 0.0.0.0
+http_port = 8080
+ignored = 131.525, 131.55, 131.725, 131.825, 136.7-136.975
+keep_other = 1
+max_duration_s = 120
+min_duration_ms = 500
+mp3_auto = 1
+mp3_bitrate = 32
+noise_learn_ms = 1500
+ppm = 0
+preroll_ms = 300
+ranges = 118-137
+recordings_dir = recordings
+retention_days = 0
+sample_rate = 2400000
+start_level_db = 6
+stop_level_db = 3
+timeout_ms = 1200
+voice_threshold = 0.5
+wav_center_mhz = 120
+wav_path = 
