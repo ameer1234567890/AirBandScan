@@ -94,19 +94,22 @@ ninja -C build
 
 Fedora: `rtl-sdr-devel lame-libs` · Arch: `rtl-sdr lame`
 
-#### Windows (MSYS2 / MinGW-w64)
+#### Windows (MSYS2)
 
-Open the **MSYS2 MINGW64** shell:
+Open the **MSYS2 UCRT64** shell:
 
 ```bash
-pacman -S --needed mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja \
-  mingw-w64-x86_64-pkgconf mingw-w64-x86_64-rtl-sdr mingw-w64-x86_64-lame
-# optional: mingw-w64-x86_64-libairspy mingw-w64-x86_64-hackrf
+pacman -S --needed mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja \
+  mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-rtl-sdr mingw-w64-ucrt-x86_64-lame
+# optional: mingw-w64-ucrt-x86_64-hackrf
 
 cmake -S . -B build -G Ninja
 ninja -C build
 ./build/airbandscan.exe
 ```
+
+32-bit Windows: MSYS2 no longer packages librtlsdr for 32-bit, so build it from
+source; see the `windows-x86` job in [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
 The needed DLLs are copied next to `airbandscan.exe`, so it also starts with a double-click.
 For an RTL-SDR on Windows, install the WinUSB driver with [Zadig](https://zadig.akeo.ie/).

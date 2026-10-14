@@ -65,8 +65,11 @@ jobs:
           if-no-files-found: error
 
   # -------------------------------------------------------------------------
-  # Windows: MSYS2 / MinGW-w64 (the toolchain AirScope uses). Every DLL the
-  # exe needs, plus LAME for MP3, is zipped next to airbandscan.exe.
+  # Windows: MSYS2. MSYS2 no longer packages librtlsdr / libusb for 32-bit,
+  # so the RTL-SDR driver is built from source (rtl-sdr-blog fork, which also
+  # supports the RTL-SDR Blog V4) against libusb (MSYS2 package on x64, the
+  # official libusb Windows binaries on x86). Every DLL the exe needs, plus
+  # LAME for MP3, is zipped next to airbandscan.exe.
   # -------------------------------------------------------------------------
   windows:
     name: ${{ matrix.name }}
@@ -76,9 +79,16 @@ jobs:
       matrix:
         include:
           - name: windows-x64
-            msystem: MINGW64
+            msystem: UCRT64
+            libusb: package
+            libusb_dir: MinGW64
           - name: windows-x86
             msystem: MINGW32
+            libusb: official
+            libusb_dir: MinGW32
+    env:
+      RTLSDR_TAG: v1.3.6      # github.com/rtlsdrblog/rtl-sdr-blog
+      LIBUSB_VERSION: 1.0.30  # github.com/libusb/libusb/releases
     defaults:
       run:
         shell: msys2 {0}
@@ -89,16 +99,43 @@ jobs:
         with:
           msystem: ${{ matrix.msystem }}
           update: true
-          install: zip
+          suppress-deprecation-warnings: msystem-mingw32
+          install: zip p7zip git
           pacboy: >-
-            toolchain:p cmake:p ninja:p pkgconf:p rtl-sdr:p
+            toolchain:p cmake:p ninja:p pkgconf:p
 
-      - name: Optional packages (MP3, Airspy, HackRF)
+      - name: Optional packages (MP3, HackRF)
         run: |
-          for p in lame libairspy hackrf; do
+          for p in lame hackrf; do
             pacman -S --needed --noconfirm "${MINGW_PACKAGE_PREFIX}-$p" \
               || echo "::warning::${MINGW_PACKAGE_PREFIX}-$p not available, building without it"
           done
+
+      - name: libusb (MSYS2 package)
+        if: matrix.libusb == 'package'
+        run: pacman -S --needed --noconfirm "${MINGW_PACKAGE_PREFIX}-libusb"
+
+      - name: libusb (official Windows binaries)
+        if: matrix.libusb == 'official'
+        run: |
+          curl -fsSL -o libusb.7z "https://github.com/libusb/libusb/releases/download/v$LIBUSB_VERSION/libusb-$LIBUSB_VERSION.7z"
+          7z x -y -olibusb libusb.7z "include/*" "${{ matrix.libusb_dir }}/*" > /dev/null
+          mkdir -p "$MINGW_PREFIX/include/libusb-1.0"
+          cp libusb/include/libusb.h "$MINGW_PREFIX/include/libusb-1.0/"
+          cp libusb/${{ matrix.libusb_dir }}/static/libusb-1.0.dll.a "$MINGW_PREFIX/lib/"
+          cp libusb/${{ matrix.libusb_dir }}/dll/libusb-1.0.dll "$MINGW_PREFIX/bin/"
+          printf '%s\n' "prefix=$MINGW_PREFIX" 'libdir=${prefix}/lib' 'includedir=${prefix}/include' \
+            'Name: libusb-1.0' 'Description: libusb' "Version: $LIBUSB_VERSION" \
+            'Libs: -L${libdir} -lusb-1.0' 'Cflags: -I${includedir}/libusb-1.0' \
+            > "$MINGW_PREFIX/lib/pkgconfig/libusb-1.0.pc"
+
+      - name: Build librtlsdr (rtl-sdr-blog ${{ env.RTLSDR_TAG }})
+        run: |
+          git clone -q --depth 1 -b "$RTLSDR_TAG" https://github.com/rtlsdrblog/rtl-sdr-blog rtlsdr-src
+          cmake -S rtlsdr-src -B rtlsdr-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$MINGW_PREFIX" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-L$MINGW_PREFIX/lib" -DCMAKE_EXE_LINKER_FLAGS="-L$MINGW_PREFIX/lib"
+          ninja -C rtlsdr-build install
 
       - name: Version
         run: |
@@ -114,23 +151,33 @@ jobs:
       - name: Package
         run: |
           pkg="airbandscan-$VERSION-${{ matrix.name }}"
-          mkdir -p "dist/$pkg"
-          cp build/airbandscan.exe README.md LICENSE airband.conf.example "dist/$pkg/"
-          # LAME is loaded at run time (not linked), so add it explicitly.
-          extra=""
-          [ -f "$MINGW_PREFIX/bin/libmp3lame-0.dll" ] && extra="$MINGW_PREFIX/bin/libmp3lame-0.dll"
-          # Copy every MinGW DLL the exe (and LAME) depend on.
-          for f in build/airbandscan.exe $extra; do
-            ldd "$f" | awk '{print $3}' | grep -i "^$MINGW_PREFIX/" || true
-          done | sort -u | while read -r dll; do cp "$dll" "dist/$pkg/"; done
-          [ -n "$extra" ] && cp "$extra" "dist/$pkg/"
+          out="dist/$pkg"
+          mkdir -p "$out"
+          cp build/airbandscan.exe README.md LICENSE airband.conf.example "$out/"
+          # Walk the DLL imports recursively and copy every DLL that comes
+          # from the MSYS2 prefix. LAME is loaded at run time, so seed it too.
+          queue=("build/airbandscan.exe")
+          lame="$MINGW_PREFIX/bin/libmp3lame-0.dll"
+          if [ -f "$lame" ]; then queue+=("$lame"); cp "$lame" "$out/"; fi
+          while [ ${#queue[@]} -gt 0 ]; do
+            f="${queue[0]}"; queue=("${queue[@]:1}")
+            for dll in $(objdump -p "$f" | awk '/DLL Name:/ {print $3}'); do
+              src=$(find "$MINGW_PREFIX/bin" -maxdepth 1 -iname "$dll" | head -1)
+              [ -n "$src" ] || continue                       # Windows system DLL
+              [ -f "$out/$(basename "$src")" ] && continue    # already copied
+              cp "$src" "$out/"
+              queue+=("$src")
+            done
+          done
           printf '%s\r\n' \
             "AirBandScan $VERSION (${{ matrix.name }})" "" \
             "1. RTL-SDR: install the WinUSB driver once with Zadig (https://zadig.akeo.ie/)." \
             "2. Double-click airbandscan.exe (allow it through the firewall if asked)." \
             "3. Open http://localhost:8080/ in your browser." \
-            > "dist/$pkg/INSTALL.txt"
-          ls -la "dist/$pkg"
+            > "$out/INSTALL.txt"
+          ls -la "$out"
+          # Smoke test from the package folder only (no MSYS2 on PATH).
+          (cd "$out" && PATH="/c/Windows/system32:/c/Windows" ./airbandscan.exe --help | head -1)
           (cd dist && zip -qr "$pkg.zip" "$pkg" && rm -rf "$pkg")
 
       - uses: actions/upload-artifact@v4
