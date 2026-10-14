@@ -12,7 +12,7 @@ and lets you listen, browse and download them from a web browser.
 ![SDR](https://img.shields.io/badge/SDR-RTL--SDR%20%7C%20Airspy%20%7C%20SDRplay%20%7C%20HackRF-1e90ff)
 ![License](https://img.shields.io/badge/license-GPLv3-1e90ff)
 
-[Features](#features) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [How it works](#how-it-works) · [API](#http-api)
+[Features](#features) · [Supported SDRs](#supported-sdrs) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [How it works](#how-it-works) · [API](#http-api)
 
 </div>
 
@@ -29,6 +29,21 @@ and lets you listen, browse and download them from a web browser.
 - ✈️ **Voice only:** ACARS and VDL2 data channels are ignored by default.
 - ⚙️ **Web settings:** device, gain, ranges, thresholds and MP3 options, all from the browser.
 - 🖥️ **Single native program:** C++17, no Python, runs as a desktop app or headless server on Windows and Linux; open it from any phone or PC on your network.
+
+## Supported SDRs
+
+| SDR | Models | Sample rates | Build requirement |
+|---|---|---|---|
+| **RTL-SDR** | Any RTL2832U dongle: RTL-SDR Blog V3 / V4, Nooelec NESDR (Mini, SMArt), generic R820T / R820T2 / R828D / E4000 sticks | 1.024 – 3.2 MS/s (2.4 recommended) | `librtlsdr` (always required) |
+| **Airspy** | Airspy R2, Airspy Mini | 2.5 · 3 · 6 · 10 MS/s | `libairspy` (optional) |
+| **SDRplay** | RSP1, RSP1A, RSP1B, RSP2, RSPduo, RSPdx, RSPdx R2 | 2 – 10 MS/s | SDRplay API 3.x (optional) |
+| **HackRF** | HackRF One | 2 – 10 MS/s | `libhackrf` (optional) |
+| **IQ WAV file** | 8- or 16-bit stereo I/Q recordings (e.g. from SDR#, SDR++, SDRuno) | from the file | none (built in) |
+
+- Optional drivers are detected automatically at build time; only the SDRs that were found appear under **Settings → Device type**.
+- A wider sample rate covers more of the airband at once (fewer hops), but uses more CPU.
+- **RTL-SDR Blog V4** needs the [rtl-sdr-blog](https://github.com/rtlsdrblog/rtl-sdr-blog) driver, a newer `librtlsdr` than most Linux distributions ship.
+- Airspy HF+ is not supported: it doesn't cover the VHF airband.
 
 ## Screenshots
 
