@@ -189,4 +189,4 @@ AirBandScan builds on three open-source projects:
 
 [GPLv3](LICENSE), the same as the projects it is based on.
 
-<div align="center"><sub>Made for airband listeners ✈️</sub></div>
+
