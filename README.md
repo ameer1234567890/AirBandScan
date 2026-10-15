@@ -14,6 +14,8 @@ and lets you listen, browse and download them from a web browser.
 
 [Features](#features) · [Supported SDRs](#supported-sdrs) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [How it works](#how-it-works) · [API](#http-api)
 
+<a href="https://www.paypal.com/donate/?hosted_button_id=KSWP8Q4NBCJW6" title="PayPal - The safer, easier way to pay online!"><img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="Donate with PayPal"></a>
+
 </div>
 
 ---
