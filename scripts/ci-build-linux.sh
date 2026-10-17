@@ -12,10 +12,15 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends \
     build-essential cmake ninja-build pkg-config file ca-certificates \
-    librtlsdr-dev libairspy-dev libhackrf-dev >/dev/null
+    librtlsdr-dev libairspy-dev libairspyhf-dev libhackrf-dev libiio-dev >/dev/null
 
 BUILD="build-ci-$NAME"
-cmake -S . -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION="$VERSION"
+cmake -S . -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION="$VERSION" | tee "$BUILD.log"
+# Fail instead of silently shipping a build without these drivers.
+for d in "Airspy:" "Airspy HF+:" "HackRF:" "PlutoSDR (libiio):"; do
+    grep -qF -- "-- $d" "$BUILD.log" || { echo "missing SDR driver: $d" >&2; exit 1; }
+done
+rm -f "$BUILD.log"
 ninja -C "$BUILD" airbandscan
 
 PKG="airbandscan-$VERSION-$NAME"
@@ -26,7 +31,7 @@ cat > "dist/$PKG/INSTALL.txt" <<TXT
 AirBandScan $VERSION ($NAME)
 
 1. Install the runtime libraries (Debian / Ubuntu / Raspberry Pi OS):
-     sudo apt install librtlsdr0 libairspy0 libhackrf0 libmp3lame0
+     sudo apt install librtlsdr0 libairspy0 libairspyhf1 libhackrf0 libiio0 libmp3lame0
 2. Allow the SDR without root: sudo apt install rtl-sdr   (installs the udev rules)
    and unplug / replug the dongle.
 3. Run:  ./airbandscan

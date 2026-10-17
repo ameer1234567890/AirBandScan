@@ -17,12 +17,13 @@ struct FreqRange
 struct Config
 {
     // ---- SDR device ----
-    std::string device = "rtlsdr"; // rtlsdr | airspy | sdrplay | hackrf | wav
+    std::string device = "rtlsdr"; // rtlsdr | airspy | airspyhf | sdrplay | hackrf | pluto | wav
     int    deviceIndex = 0;
     double sampleRate = 2.4e6;
     double gainDb = 40.0;          // < 0 = automatic gain
     double ppm = 0.0;
     bool   biasTee = false;
+    std::string plutoUri;          // PlutoSDR: "ip:192.168.2.1", "usb:1.4.5"; empty = auto
     std::string wavPath;           // IQ WAV file (device = wav)
     double wavCenterHz = 120.0e6;  // what the IQ file was centred on
 

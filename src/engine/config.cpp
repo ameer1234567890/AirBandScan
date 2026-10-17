@@ -104,6 +104,7 @@ std::map<std::string, std::string> Config::toMap() const
     m["ppm"] = num(ppm, 1);
     m["bias_tee"] = biasTee ? "1" : "0";
     m["wav_path"] = wavPath;
+    m["pluto_uri"] = plutoUri;
     m["wav_center_mhz"] = num(wavCenterHz / 1e6);
     m["ranges"] = formatRanges(ranges);
     m["ignored"] = formatRanges(ignored);
@@ -147,7 +148,7 @@ bool Config::fromMap(const std::map<std::string, std::string>& kv, std::string& 
 
         if (key == "device")
         {
-            if (v != "rtlsdr" && v != "airspy" && v != "sdrplay" && v != "hackrf" && v != "wav"
+            if (v != "rtlsdr" && v != "airspy" && v != "airspyhf" && v != "sdrplay" && v != "hackrf" && v != "pluto" && v != "wav"
 #if defined(AIRBANDSCAN_SIM)
                 && v != "sim"
 #endif
@@ -164,6 +165,15 @@ bool Config::fromMap(const std::map<std::string, std::string>& kv, std::string& 
         else if (key == "ppm") { if (!needNum(-200, 200)) return false; c.ppm = d; }
         else if (key == "bias_tee") c.biasTee = toBool(v);
         else if (key == "wav_path") c.wavPath = v;
+        else if (key == "pluto_uri")
+        {
+            if (v.size() > 200 || v.find_first_of(" \t\r\n") != std::string::npos)
+            {
+                err = "pluto_uri: expected an address such as ip:192.168.2.1";
+                return false;
+            }
+            c.plutoUri = v;
+        }
         else if (key == "wav_center_mhz") { if (!needNum(0.01, 7000)) return false; c.wavCenterHz = d * 1e6; }
         else if (key == "ranges")
         {

@@ -9,7 +9,7 @@ and lets you listen, browse and download them from a web browser.
 
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-1e90ff)
 ![Language](https://img.shields.io/badge/C%2B%2B-17-1e90ff)
-![SDR](https://img.shields.io/badge/SDR-RTL--SDR%20%7C%20Airspy%20%7C%20SDRplay%20%7C%20HackRF-1e90ff)
+![SDR](https://img.shields.io/badge/SDR-RTL--SDR%20%7C%20Airspy%20%7C%20Airspy%20HF%2B%20%7C%20SDRplay%20%7C%20HackRF%20%7C%20PlutoSDR-1e90ff)
 ![License](https://img.shields.io/badge/license-GPLv3-1e90ff)
 
 [Features](#features) · [Supported SDRs](#supported-sdrs) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [How it works](#how-it-works) · [API](#http-api)
@@ -38,14 +38,33 @@ and lets you listen, browse and download them from a web browser.
 |---|---|---|---|
 | **RTL-SDR** | Any RTL2832U dongle: RTL-SDR Blog V3 / V4, Nooelec NESDR (Mini, SMArt), generic R820T / R820T2 / R828D / E4000 sticks | 1.024 – 3.2 MS/s (2.4 recommended) | `librtlsdr` (always required) |
 | **Airspy** | Airspy R2, Airspy Mini | 2.5 · 3 · 6 · 10 MS/s | `libairspy` (optional) |
+| **Airspy HF+** | Airspy HF+ Dual Port, HF+ Discovery (VHF input: 60 – 260 MHz) | 192 – 912 kS/s (768 recommended) | `libairspyhf` (optional) |
 | **SDRplay** | RSP1, RSP1A, RSP1B, RSP2, RSPduo, RSPdx, RSPdx R2 | 2 – 10 MS/s | SDRplay API 3.x (optional) |
 | **HackRF** | HackRF One | 2 – 10 MS/s | `libhackrf` (optional) |
+| **PlutoSDR** | ADALM-Pluto (Rev B/C/D), Pluto+ and other AD9361/AD9363 boards over **USB or Ethernet** | 2.4 – 10 MS/s (2.4 recommended) | `libiio` 0.x or 1.x (optional) |
 | **IQ WAV file** | 8- or 16-bit stereo I/Q recordings (e.g. from SDR#, SDR++, SDRuno) | from the file | none (built in) |
 
 - Optional drivers are detected automatically at build time; only the SDRs that were found appear under **Settings → Device type**.
 - A wider sample rate covers more of the airband at once (fewer hops), but uses more CPU.
 - **RTL-SDR Blog V4** needs the [rtl-sdr-blog](https://github.com/rtlsdrblog/rtl-sdr-blog) driver, a newer `librtlsdr` than most Linux distributions ship.
-- Airspy HF+ is not supported: it doesn't cover the VHF airband.
+- **Airspy HF+** has a narrow bandwidth (under 1 MHz), so it hops through 118–137 MHz in about 30 steps. For quicker coverage, narrow the scan ranges to your local frequencies. Gain `-1` turns on AGC; 0–48 sets the attenuator (48 = none).
+
+### PlutoSDR
+
+- **Connection:** set **Settings → Pluto address**.
+  - USB: leave it empty, or use `ip:192.168.2.1`; a Pluto on USB also shows up as a network card at that address.
+  - Ethernet (Pluto+, or a Pluto with a USB-Ethernet adapter): `ip:<address>`, e.g. `ip:192.168.1.50` or `ip:pluto.local`.
+  - A specific USB device: `usb:1.4.5`. **Detect** lists the Plutos found by USB scan and mDNS.
+- **Airband frequencies:** a stock Pluto (AD9363) only tunes 325 – 3800 MHz. Enable the AD9364 range (70 MHz – 6 GHz) once:
+  ```bash
+  ssh root@192.168.2.1          # password: analog
+  fw_setenv attr_name compatible
+  fw_setenv attr_val ad9364
+  reboot
+  ```
+  Without this, AirBandScan reports that the Pluto rejected the frequency.
+- **Gain:** `-1` = AGC (slow attack); 0 – 71 dB = manual.
+- **Sample rate:** 2.4 MS/s is the safe choice over USB 2.0 and the USB network link; higher rates may drop samples.
 
 ## Screenshots
 
@@ -78,7 +97,7 @@ Ready-to-run packages are on the **[Releases](https://github.com/dhihacker/AirBa
 | Raspberry Pi 64-bit / 32-bit OS | `airbandscan-*-raspberrypi-arm64.tar.gz` / `-raspberrypi-armhf.tar.gz` |
 
 Linux and Raspberry Pi builds need Debian 12, Ubuntu 24.04, Raspberry Pi OS (bookworm) or newer, plus
-`sudo apt install librtlsdr0 libairspy0 libhackrf0 libmp3lame0`. Releases are built by
+`sudo apt install librtlsdr0 libairspy0 libairspyhf1 libhackrf0 libiio0 libmp3lame0`. Releases are built by
 [GitHub Actions](.github/workflows/release.yml) whenever a version tag such as `v1.0.0` is pushed.
 
 ### Build from source
@@ -87,7 +106,7 @@ Linux and Raspberry Pi builds need Debian 12, Ubuntu 24.04, Raspberry Pi OS (boo
 
 ```bash
 sudo apt install build-essential cmake ninja-build pkg-config librtlsdr-dev libmp3lame0
-# optional: libairspy-dev libhackrf-dev   (SDRplay: install the SDRplay API 3.x)
+# optional: libairspy-dev libairspyhf-dev libhackrf-dev libiio-dev   (SDRplay: install the SDRplay API 3.x)
 
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 ninja -C build
@@ -103,7 +122,8 @@ Open the **MSYS2 UCRT64** shell:
 ```bash
 pacman -S --needed mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja \
   mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-rtl-sdr mingw-w64-ucrt-x86_64-lame
-# optional: mingw-w64-ucrt-x86_64-hackrf
+# optional: mingw-w64-ucrt-x86_64-hackrf mingw-w64-ucrt-x86_64-libiio
+# Airspy HF+: MSYS2 has no package; see the libairspyhf step in .github/workflows/release.yml
 
 cmake -S . -B build -G Ninja
 ninja -C build

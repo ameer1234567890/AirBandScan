@@ -1,4 +1,4 @@
-// Abstract SDR source interface. Phase 1 implements RtlSdrSource.
+// Abstract SDR source interface (RTL-SDR, Airspy, Airspy HF+, SDRplay, HackRF, PlutoSDR, IQ WAV).
 #pragma once
 
 #include <cstdint>
@@ -33,6 +33,8 @@ public:
     // SDRplay RSP1A built-in FM broadcast notch filter. No-op elsewhere.
     virtual void setFmNotch(bool on) { (void)on; }
     virtual void setDcBlock(bool on) { (void)on; }
+    // Network/URI address (PlutoSDR: "ip:192.168.2.1"). No-op elsewhere.
+    virtual void setAddress(const std::string& addr) { (void)addr; }
 
     virtual double centerFreq() const = 0;
     virtual double sampleRate() const = 0;

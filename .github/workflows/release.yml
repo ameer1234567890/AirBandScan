@@ -68,8 +68,10 @@ jobs:
   # Windows: MSYS2. MSYS2 no longer packages librtlsdr / libusb for 32-bit,
   # so the RTL-SDR driver is built from source (rtl-sdr-blog fork, which also
   # supports the RTL-SDR Blog V4) against libusb (MSYS2 package on x64, the
-  # official libusb Windows binaries on x86). Every DLL the exe needs, plus
-  # LAME for MP3, is zipped next to airbandscan.exe.
+  # official libusb Windows binaries on x86). libairspyhf (Airspy HF+) is
+  # built from source on both; libiio (PlutoSDR) is the MSYS2 package on x64
+  # and built from source on x86. Every DLL the exe needs, plus LAME for MP3,
+  # is zipped next to airbandscan.exe.
   # -------------------------------------------------------------------------
   windows:
     name: ${{ matrix.name }}
@@ -82,13 +84,17 @@ jobs:
             msystem: UCRT64
             libusb: package
             libusb_dir: MinGW64
+            libiio: package
           - name: windows-x86
             msystem: MINGW32
             libusb: official
             libusb_dir: MinGW32
+            libiio: source
     env:
       RTLSDR_TAG: v1.3.6      # github.com/rtlsdrblog/rtl-sdr-blog
       LIBUSB_VERSION: 1.0.30  # github.com/libusb/libusb/releases
+      AIRSPYHF_TAG: 1.6.8     # github.com/airspy/airspyhf
+      LIBIIO_TAG: v0.26       # github.com/analogdevicesinc/libiio
     defaults:
       run:
         shell: msys2 {0}
@@ -140,6 +146,33 @@ jobs:
             -DCMAKE_SHARED_LINKER_FLAGS="-L$MINGW_PREFIX/lib" -DCMAKE_EXE_LINKER_FLAGS="-L$MINGW_PREFIX/lib"
           ninja -C rtlsdr-build install
 
+      - name: Build libairspyhf (Airspy HF+ ${{ env.AIRSPYHF_TAG }})
+        run: |
+          git clone -q --depth 1 -b "$AIRSPYHF_TAG" https://github.com/airspy/airspyhf airspyhf-src
+          # Upstream CMake only installs on Unix: compile the two sources into a DLL directly.
+          cd airspyhf-src/libairspyhf/src
+          gcc -O2 -std=gnu99 -shared -Dairspyhf_EXPORTS $(pkg-config --cflags libusb-1.0) \
+            -o "$MINGW_PREFIX/bin/libairspyhf.dll" airspyhf.c iqbalancer.c \
+            -Wl,--out-implib,"$MINGW_PREFIX/lib/libairspyhf.dll.a" $(pkg-config --libs libusb-1.0) -lpthread
+          mkdir -p "$MINGW_PREFIX/include/libairspyhf"
+          cp airspyhf.h iqbalancer.h airspyhf_commands.h "$MINGW_PREFIX/include/libairspyhf/"
+
+      - name: libiio (MSYS2 package)
+        if: matrix.libiio == 'package'
+        run: pacman -S --needed --noconfirm "${MINGW_PACKAGE_PREFIX}-libiio"
+
+      - name: Build libiio (PlutoSDR, ${{ env.LIBIIO_TAG }})
+        if: matrix.libiio == 'source'
+        run: |
+          pacman -S --needed --noconfirm "${MINGW_PACKAGE_PREFIX}-libxml2"
+          git clone -q --depth 1 -b "$LIBIIO_TAG" https://github.com/analogdevicesinc/libiio libiio-src
+          cmake -S libiio-src -B libiio-build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$MINGW_PREFIX" \
+            -DWITH_TESTS=OFF -DWITH_IIOD=OFF -DWITH_LOCAL_BACKEND=OFF -DWITH_SERIAL_BACKEND=OFF \
+            -DWITH_ZSTD=OFF -DWITH_DOC=OFF -DCSHARP_BINDINGS=OFF -DPYTHON_BINDINGS=OFF \
+            -DCMAKE_SHARED_LINKER_FLAGS="-L$MINGW_PREFIX/lib"
+          ninja -C libiio-build install
+
       - name: Version
         run: |
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="dev-${GITHUB_SHA::7}"; fi
@@ -147,7 +180,9 @@ jobs:
 
       - name: Build
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION="$VERSION"
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAPP_VERSION="$VERSION" | tee cmake.log
+          # Fail instead of silently shipping a build without these drivers.
+          grep -q "Airspy HF+:" cmake.log && grep -q "PlutoSDR (libiio):" cmake.log
           ninja -C build airbandscan
           ./build/airbandscan.exe --help | head -1
 
@@ -174,7 +209,8 @@ jobs:
           done
           printf '%s\r\n' \
             "AirBandScan $VERSION (${{ matrix.name }})" "" \
-            "1. RTL-SDR: install the WinUSB driver once with Zadig (https://zadig.akeo.ie/)." \
+            "1. RTL-SDR / Airspy HF+ / HackRF: install the WinUSB driver once with Zadig (https://zadig.akeo.ie/)." \
+            "   PlutoSDR: install the PlutoSDR drivers from Analog Devices, or connect it over the network (ip:192.168.2.1)." \
             "2. Double-click airbandscan.exe (allow it through the firewall if asked)." \
             "3. Open http://localhost:8080/ in your browser." \
             > "$out/INSTALL.txt"
@@ -231,5 +267,5 @@ jobs:
             | Raspberry Pi 32-bit OS (Pi 2 / 3 / 4 / 5) | `airbandscan-*-raspberrypi-armhf.tar.gz` |
 
             **Windows:** unzip, install the RTL-SDR WinUSB driver with [Zadig](https://zadig.akeo.ie/), run `airbandscan.exe`.
-            **Linux / Raspberry Pi:** `sudo apt install librtlsdr0 libairspy0 libhackrf0 libmp3lame0`, extract, run `./airbandscan`.
+            **Linux / Raspberry Pi:** `sudo apt install librtlsdr0 libairspy0 libairspyhf1 libhackrf0 libiio0 libmp3lame0`, extract, run `./airbandscan`.
             Then open **http://localhost:8080/**.

@@ -65,11 +65,17 @@ const char* deviceTypes()
 #if defined(HAS_AIRSPY)
            ",\"airspy\""
 #endif
+#if defined(HAS_AIRSPYHF)
+           ",\"airspyhf\""
+#endif
 #if defined(HAS_SDRPLAY)
            ",\"sdrplay\""
 #endif
 #if defined(HAS_HACKRF)
            ",\"hackrf\""
+#endif
+#if defined(HAS_PLUTO)
+           ",\"pluto\""
 #endif
            ",\"wav\"]";
 }

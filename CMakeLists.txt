@@ -36,12 +36,19 @@ find_path(SDRPLAY_INCLUDE_DIRS NAMES sdrplay_api.h
 find_library(SDRPLAY_LIBRARIES NAMES sdrplay_api
     HINTS ${SDRPLAY_API_ROOT} "$ENV{SDRPLAY_API_PATH}" "$ENV{ProgramFiles}/SDRplay/API"
     PATH_SUFFIXES ${SDRPLAY_ARCH})
+find_path(AIRSPYHF_INCLUDE_DIRS NAMES libairspyhf/airspyhf.h)
+find_library(AIRSPYHF_LIBRARIES NAMES airspyhf libairspyhf)
+# libiio: 1.x installs <iio/iio.h>, 0.x installs <iio.h> (both APIs are supported).
+find_path(IIO_INCLUDE_DIRS NAMES iio/iio.h iio.h)
+find_library(IIO_LIBRARIES NAMES iio libiio)
 find_path(HACKRF_INCLUDE_DIRS NAMES libhackrf/hackrf.h)
 find_library(HACKRF_LIBRARIES NAMES hackrf libhackrf)
 
 option(WITH_AIRSPY  "Airspy support"  ON)
 option(WITH_SDRPLAY "SDRplay support" ON)
 option(WITH_HACKRF  "HackRF support"  ON)
+option(WITH_AIRSPYHF "Airspy HF+ support" ON)
+option(WITH_PLUTO  "PlutoSDR (libiio) support" ON)
 
 # ---------------------------------------------------------------------------
 # Web UI embedded into the binary (rebuilt when ui.html changes)
@@ -104,6 +111,23 @@ if(WITH_HACKRF AND HACKRF_INCLUDE_DIRS AND HACKRF_LIBRARIES)
     target_include_directories(airbandscan PRIVATE ${HACKRF_INCLUDE_DIRS})
     target_link_libraries(airbandscan PRIVATE ${HACKRF_LIBRARIES})
 endif()
+if(WITH_AIRSPYHF AND AIRSPYHF_INCLUDE_DIRS AND AIRSPYHF_LIBRARIES)
+    message(STATUS "Airspy HF+: ${AIRSPYHF_LIBRARIES}")
+    target_sources(airbandscan PRIVATE src/sdr/airspyhf_source.cpp)
+    target_compile_definitions(airbandscan PRIVATE HAS_AIRSPYHF=1)
+    target_include_directories(airbandscan PRIVATE ${AIRSPYHF_INCLUDE_DIRS})
+    target_link_libraries(airbandscan PRIVATE ${AIRSPYHF_LIBRARIES})
+endif()
+if(WITH_PLUTO AND IIO_INCLUDE_DIRS AND IIO_LIBRARIES)
+    message(STATUS "PlutoSDR (libiio): ${IIO_LIBRARIES}")
+    target_sources(airbandscan PRIVATE src/sdr/pluto_source.cpp)
+    target_compile_definitions(airbandscan PRIVATE HAS_PLUTO=1)
+    if(EXISTS "${IIO_INCLUDE_DIRS}/iio/iio.h")
+        target_compile_definitions(airbandscan PRIVATE IIO_V1=1)
+    endif()
+    target_include_directories(airbandscan PRIVATE ${IIO_INCLUDE_DIRS})
+    target_link_libraries(airbandscan PRIVATE ${IIO_LIBRARIES})
+endif()
 
 if(WIN32)
     target_link_libraries(airbandscan PRIVATE ws2_32)
@@ -111,7 +135,8 @@ if(WIN32)
     # Copy the MinGW runtime + SDR DLLs next to the exe so it runs standalone.
     get_filename_component(MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
     foreach(dll libgcc_s_seh-1.dll libwinpthread-1.dll libstdc++-6.dll
-                librtlsdr.dll libusb-1.0.dll libmp3lame-0.dll libairspy.dll libhackrf.dll)
+                librtlsdr.dll libusb-1.0.dll libmp3lame-0.dll libairspy.dll libhackrf.dll
+                libairspyhf.dll libiio.dll libxml2-2.dll)
         if(EXISTS "${MINGW_BIN}/${dll}")
             add_custom_command(TARGET airbandscan POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MINGW_BIN}/${dll}" "$<TARGET_FILE_DIR:airbandscan>")

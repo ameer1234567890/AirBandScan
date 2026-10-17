@@ -245,11 +245,13 @@ canvas.hist{display:block;width:100%;height:340px}
       <div class="form">
         <div class="panel"><div class="phead"><h2>SDR device</h2></div><div class="pbody">
           <label class="field"><span>Device type</span><select name="device" id="fDevice"></select></label>
-          <label class="field"><span>Device</span><span class="inline"><select name="device_index" id="fIndex"><option value="0">#0</option></select><button type="button" class="btn sm" id="detectBtn">Detect</button></span></label>
+          <label class="field dev-pluto"><span>Pluto address</span><input type="text" name="pluto_uri" id="fPluto" list="plutoList" class="mono" placeholder="automatic"></label>
+          <div class="field dev-pluto"><span></span><span class="hint"><button type="button" class="btn sm" id="plutoDetect">Detect</button><datalist id="plutoList"></datalist> <span class="mono">ip:192.168.2.1</span>, <span class="mono">ip:pluto.local</span> (Ethernet / USB network) or <span class="mono">usb:1.4.5</span>. Empty = automatic. The airband needs the AD9364 range enabled (see README).</span></div>
+          <label class="field dev-idx"><span>Device</span><span class="inline"><select name="device_index" id="fIndex"><option value="0">#0</option></select><button type="button" class="btn sm" id="detectBtn">Detect</button></span></label>
           <label class="field dev-hw"><span>Sample rate (S/s)</span><select name="sample_rate" id="fRate"></select></label>
-          <label class="field dev-hw"><span>Gain (dB)</span><span class="inline"><input type="number" name="gain_db" step="0.1" min="-1" max="100" style="width:110px"><span class="msg">-1 = automatic</span></span></label>
+          <label class="field dev-hw"><span>Gain (dB)</span><span class="inline"><input type="number" name="gain_db" step="0.1" min="-1" max="100" style="width:110px"><span class="msg" id="gainHint">-1 = automatic</span></span></label>
           <label class="field dev-hw"><span>Frequency correction (ppm)</span><input type="number" name="ppm" step="0.1"></label>
-          <label class="field dev-hw"><span>Bias-T</span><span><input type="checkbox" name="bias_tee"></span></label>
+          <label class="field dev-hw dev-bias"><span>Bias-T</span><span><input type="checkbox" name="bias_tee"></span></label>
           <label class="field dev-wav"><span>IQ WAV file</span><input type="text" name="wav_path" placeholder="/path/to/capture.wav"></label>
           <label class="field dev-wav"><span>File centre (MHz)</span><input type="number" name="wav_center_mhz" step="0.0001"></label>
         </div></div>
@@ -670,18 +672,26 @@ $("#hist").addEventListener("click", e => { const c = $("#hist"), b = c.getBound
 // ---------- settings ----------
 let cfgLoaded = null;
 const RATES = {rtlsdr: [1024000, 1400000, 1800000, 2048000, 2400000, 2560000, 2880000, 3200000], airspy: [2500000, 3000000, 6000000, 10000000],
-  sdrplay: [2000000, 3000000, 6000000, 8000000, 10000000], hackrf: [2000000, 4000000, 8000000, 10000000], wav: []};
+  sdrplay: [2000000, 3000000, 6000000, 8000000, 10000000], hackrf: [2000000, 4000000, 8000000, 10000000],
+  airspyhf: [192000, 256000, 384000, 456000, 768000, 912000], pluto: [2400000, 3000000, 4000000, 5000000, 6000000, 8000000, 10000000], wav: []};
+const DEF_RATE = {airspyhf: 768000, pluto: 2400000};  // Pluto: higher rates may drop samples over USB / network
+const DEV_NAMES = {rtlsdr: "RTL-SDR", airspy: "Airspy R2 / Mini", airspyhf: "Airspy HF+", sdrplay: "SDRplay", hackrf: "HackRF", pluto: "PlutoSDR", wav: "IQ WAV file (test)"};
+const GAIN_HINT = {airspyhf: "-1 = AGC · 0–48 (48 = no attenuation)", pluto: "-1 = AGC (slow attack) · 0–71", hackrf: "LNA 0–40 dB, 8 dB steps"};
 function devVisibility() { const dv = $("#fDevice").value; document.querySelectorAll(".dev-hw").forEach(e => e.style.display = dv === "wav" ? "none" : "");
+  document.querySelectorAll(".dev-pluto").forEach(e => e.style.display = dv === "pluto" ? "" : "none");
+  document.querySelectorAll(".dev-idx").forEach(e => e.style.display = dv === "pluto" || dv === "wav" ? "none" : "");
+  document.querySelectorAll(".dev-bias").forEach(e => e.style.display = ["rtlsdr", "airspy", "sdrplay", "hackrf"].includes(dv) ? "" : "none");
+  $("#gainHint").textContent = GAIN_HINT[dv] || "-1 = automatic";
   document.querySelectorAll(".dev-wav").forEach(e => e.style.display = dv === "wav" ? "" : "none");
   const rs = $("#fRate"), cur = rs.value || (cfgLoaded && cfgLoaded.sample_rate); rs.innerHTML = (RATES[dv] || []).map(r => `<option value="${r}">${(r / 1e6).toFixed(3)} MS/s</option>`).join("");
-  if ([...rs.options].some(o => o.value == cur)) rs.value = cur; else if (rs.options.length) rs.value = rs.options[Math.min(4, rs.options.length - 1)].value; }
+  if ([...rs.options].some(o => o.value == cur)) rs.value = cur; else if (DEF_RATE[dv]) rs.value = DEF_RATE[dv]; else if (rs.options.length) rs.value = rs.options[Math.min(4, rs.options.length - 1)].value; }
 async function loadConfig() {
   const d = await api("/api/config"); cfgLoaded = d.config; const f = $("#cfgForm");
-  $("#fDevice").innerHTML = d.devices.map(x => `<option value="${x}">${({rtlsdr: "RTL-SDR", airspy: "Airspy", sdrplay: "SDRplay", hackrf: "HackRF", wav: "IQ WAV file (test)"})[x] || x}</option>`).join("");
+  $("#fDevice").innerHTML = d.devices.map(x => `<option value="${x}">${DEV_NAMES[x] || x}</option>`).join("");
   $("#mp3Backend").textContent = d.mp3 === "none" ? "LAME not found — install libmp3lame" : "encoder: " + d.mp3;
   for (const [k, v] of Object.entries(d.config)) { const inp = f.elements[k]; if (!inp) continue;
     if (inp.type === "checkbox") inp.checked = v === "1"; else if (inp.tagName === "SELECT" && k === "device_index") { inp.innerHTML = `<option value="${v}">#${v}</option>`; inp.value = v; } else inp.value = v; }
-  devVisibility(); if (d.config.sample_rate) $("#fRate").value = d.config.sample_rate;
+  devVisibility(); if ([...$("#fRate").options].some(o => o.value == d.config.sample_rate)) $("#fRate").value = d.config.sample_rate;
   const st = f.elements.channel_step_khz; if (![...st.options].some(o => o.value === st.value)) st.value = Math.abs(+st.value - 8.3333) < .01 ? "8.333333" : "0";
   $("#fThrV").textContent = (+$("#fThr").value).toFixed(2); $("#cfgMsg").textContent = ""; $("#cfgMsg").className = "msg";
 }
@@ -690,6 +700,10 @@ $("#fThr").oninput = () => $("#fThrV").textContent = (+$("#fThr").value).toFixed
 $("#detectBtn").onclick = async () => { const list = await api("/api/devices?type=" + $("#fDevice").value), s = $("#fIndex");
   if (!list.length) { toast("No devices found"); return; }
   s.innerHTML = list.map(x => `<option value="${x.index}">#${x.index} ${esc(x.name)}${x.serial ? " (" + esc(x.serial) + ")" : ""}</option>`).join(""); toast(list.length + " device(s) found"); };
+$("#plutoDetect").onclick = async () => { toast("Searching for PlutoSDR…"); const list = await api("/api/devices?type=pluto");
+  $("#plutoList").innerHTML = list.map(x => `<option value="${esc(x.serial)}">${esc(x.name)}</option>`).join("");
+  if (!list.length) { toast("No Pluto found on USB / mDNS: type its IP, e.g. ip:192.168.2.1"); return; }
+  $("#fPluto").value = list[0].serial; toast(list.length + " Pluto(s) found: " + list[0].serial); };
 $("#cfgReset").onclick = loadConfig;
 $("#cfgForm").onsubmit = async e => {
   e.preventDefault(); const f = e.target, p = new URLSearchParams();

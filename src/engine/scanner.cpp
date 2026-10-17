@@ -5,6 +5,12 @@
 #if defined(HAS_AIRSPY)
 #include "sdr/airspy_source.h"
 #endif
+#if defined(HAS_AIRSPYHF)
+#include "sdr/airspyhf_source.h"
+#endif
+#if defined(HAS_PLUTO)
+#include "sdr/pluto_source.h"
+#endif
 #if defined(HAS_SDRPLAY)
 #include "sdr/sdrplay_source.h"
 #endif
@@ -37,6 +43,12 @@ std::unique_ptr<SdrSource> makeSource(const std::string& type)
 #endif
 #if defined(HAS_AIRSPY)
     if (type == "airspy") return std::make_unique<AirspySource>();
+#endif
+#if defined(HAS_AIRSPYHF)
+    if (type == "airspyhf") return std::make_unique<AirspyHfSource>();
+#endif
+#if defined(HAS_PLUTO)
+    if (type == "pluto") return std::make_unique<PlutoSource>();
 #endif
 #if defined(HAS_SDRPLAY)
     if (type == "sdrplay") return std::make_unique<SdrplaySource>();
@@ -114,6 +126,7 @@ bool Scanner::start(const Config& cfg, std::string& err)
     }
     else
     {
+        src_->setAddress(cfg.plutoUri);
         src_->setSampleRate(cfg.sampleRate);
         src_->setGain(cfg.gainDb);
         src_->setPpm(cfg.ppm);
