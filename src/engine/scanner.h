@@ -94,7 +94,8 @@ public:
     Spectrum spectrum();
     bool history(int window, History& out);
 
-    static std::vector<SdrDeviceInfo> listDevices(const std::string& type);
+    // address: rtl_tcp server / Pluto URI for the network sources.
+    static std::vector<SdrDeviceInfo> listDevices(const std::string& type, const std::string& address = "");
     static std::vector<Window> splitWindows(const std::vector<FreqRange>& ranges, double fs);
 
 private:

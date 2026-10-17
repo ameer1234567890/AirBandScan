@@ -245,6 +245,8 @@ canvas.hist{display:block;width:100%;height:340px}
       <div class="form">
         <div class="panel"><div class="phead"><h2>SDR device</h2></div><div class="pbody">
           <label class="field"><span>Device type</span><select name="device" id="fDevice"></select></label>
+          <label class="field dev-rtltcp"><span>rtl_tcp server</span><input type="text" name="rtltcp_address" id="fRtlTcp" class="mono" placeholder="127.0.0.1:1234"></label>
+          <div class="field dev-rtltcp"><span></span><span class="hint"><button type="button" class="btn sm" id="rtltcpTest">Test</button> <span class="mono">host:port</span> of a computer running <span class="mono">rtl_tcp -a 0.0.0.0</span> (default port 1234).</span></div>
           <label class="field dev-pluto"><span>Pluto address</span><input type="text" name="pluto_uri" id="fPluto" list="plutoList" class="mono" placeholder="automatic"></label>
           <div class="field dev-pluto"><span></span><span class="hint"><button type="button" class="btn sm" id="plutoDetect">Detect</button><datalist id="plutoList"></datalist> <span class="mono">ip:192.168.2.1</span>, <span class="mono">ip:pluto.local</span> (Ethernet / USB network) or <span class="mono">usb:1.4.5</span>. Empty = automatic. The airband needs the AD9364 range enabled (see README).</span></div>
           <label class="field dev-idx"><span>Device</span><span class="inline"><select name="device_index" id="fIndex"><option value="0">#0</option></select><button type="button" class="btn sm" id="detectBtn">Detect</button></span></label>
@@ -671,16 +673,18 @@ $("#hist").addEventListener("click", e => { const c = $("#hist"), b = c.getBound
 
 // ---------- settings ----------
 let cfgLoaded = null;
-const RATES = {rtlsdr: [1024000, 1400000, 1800000, 2048000, 2400000, 2560000, 2880000, 3200000], airspy: [2500000, 3000000, 6000000, 10000000],
+const RTL_RATES = [1024000, 1400000, 1800000, 2048000, 2400000, 2560000, 2880000, 3200000];
+const RATES = {rtlsdr: RTL_RATES, rtltcp: RTL_RATES, airspy: [2500000, 3000000, 6000000, 10000000],
   sdrplay: [2000000, 3000000, 6000000, 8000000, 10000000], hackrf: [2000000, 4000000, 8000000, 10000000],
   airspyhf: [192000, 256000, 384000, 456000, 768000, 912000], pluto: [2400000, 3000000, 4000000, 5000000, 6000000, 8000000, 10000000], wav: []};
 const DEF_RATE = {airspyhf: 768000, pluto: 2400000};  // Pluto: higher rates may drop samples over USB / network
-const DEV_NAMES = {rtlsdr: "RTL-SDR", airspy: "Airspy R2 / Mini", airspyhf: "Airspy HF+", sdrplay: "SDRplay", hackrf: "HackRF", pluto: "PlutoSDR", wav: "IQ WAV file (test)"};
+const DEV_NAMES = {rtlsdr: "RTL-SDR", rtltcp: "RTL-SDR (rtl_tcp)", airspy: "Airspy R2 / Mini", airspyhf: "Airspy HF+", sdrplay: "SDRplay", hackrf: "HackRF", pluto: "PlutoSDR", wav: "IQ WAV file (test)"};
 const GAIN_HINT = {airspyhf: "-1 = AGC · 0–48 (48 = no attenuation)", pluto: "-1 = AGC (slow attack) · 0–71", hackrf: "LNA 0–40 dB, 8 dB steps"};
 function devVisibility() { const dv = $("#fDevice").value; document.querySelectorAll(".dev-hw").forEach(e => e.style.display = dv === "wav" ? "none" : "");
   document.querySelectorAll(".dev-pluto").forEach(e => e.style.display = dv === "pluto" ? "" : "none");
-  document.querySelectorAll(".dev-idx").forEach(e => e.style.display = dv === "pluto" || dv === "wav" ? "none" : "");
-  document.querySelectorAll(".dev-bias").forEach(e => e.style.display = ["rtlsdr", "airspy", "sdrplay", "hackrf"].includes(dv) ? "" : "none");
+  document.querySelectorAll(".dev-rtltcp").forEach(e => e.style.display = dv === "rtltcp" ? "" : "none");
+  document.querySelectorAll(".dev-idx").forEach(e => e.style.display = ["pluto", "rtltcp", "wav"].includes(dv) ? "none" : "");
+  document.querySelectorAll(".dev-bias").forEach(e => e.style.display = ["rtlsdr", "rtltcp", "airspy", "sdrplay", "hackrf"].includes(dv) ? "" : "none");
   $("#gainHint").textContent = GAIN_HINT[dv] || "-1 = automatic";
   document.querySelectorAll(".dev-wav").forEach(e => e.style.display = dv === "wav" ? "" : "none");
   const rs = $("#fRate"), cur = rs.value || (cfgLoaded && cfgLoaded.sample_rate); rs.innerHTML = (RATES[dv] || []).map(r => `<option value="${r}">${(r / 1e6).toFixed(3)} MS/s</option>`).join("");
@@ -704,6 +708,9 @@ $("#plutoDetect").onclick = async () => { toast("Searching for PlutoSDR…"); co
   $("#plutoList").innerHTML = list.map(x => `<option value="${esc(x.serial)}">${esc(x.name)}</option>`).join("");
   if (!list.length) { toast("No Pluto found on USB / mDNS: type its IP, e.g. ip:192.168.2.1"); return; }
   $("#fPluto").value = list[0].serial; toast(list.length + " Pluto(s) found: " + list[0].serial); };
+$("#rtltcpTest").onclick = async () => { const a = $("#fRtlTcp").value || "127.0.0.1:1234"; toast("Connecting to " + a + "…");
+  const list = await api("/api/devices?type=rtltcp&address=" + encodeURIComponent(a));
+  toast(list.length ? "OK: " + list[0].name + " at " + a : "No rtl_tcp server answered at " + a); };
 $("#cfgReset").onclick = loadConfig;
 $("#cfgForm").onsubmit = async e => {
   e.preventDefault(); const f = e.target, p = new URLSearchParams();

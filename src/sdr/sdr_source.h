@@ -1,4 +1,4 @@
-// Abstract SDR source interface (RTL-SDR, Airspy, Airspy HF+, SDRplay, HackRF, PlutoSDR, IQ WAV).
+// Abstract SDR source interface (RTL-SDR, rtl_tcp, Airspy, Airspy HF+, SDRplay, HackRF, PlutoSDR, IQ WAV).
 #pragma once
 
 #include <cstdint>
@@ -35,6 +35,8 @@ public:
     virtual void setDcBlock(bool on) { (void)on; }
     // Network/URI address (PlutoSDR: "ip:192.168.2.1"). No-op elsewhere.
     virtual void setAddress(const std::string& addr) { (void)addr; }
+    // Samples to discard after a retune: driver buffers (network sources need longer).
+    virtual double retuneSettleSec() const { return 0.15; }
 
     virtual double centerFreq() const = 0;
     virtual double sampleRate() const = 0;

@@ -1,6 +1,7 @@
 #include "engine/scanner.h"
 
 #include "sdr/rtl_sdr_source.h"
+#include "sdr/rtl_tcp_source.h"
 #include "sdr/wav_file_source.h"
 #if defined(HAS_AIRSPY)
 #include "sdr/airspy_source.h"
@@ -31,7 +32,6 @@ namespace {
 constexpr double kFrameSec = 0.020;     // detection frame (rtl-sdr-scanner: 50 fps)
 constexpr double kTimeAvgSec = 0.160;   // time averaging (GROUPING_Y)
 constexpr double kUsable = 0.80;        // usable share of the sample rate
-constexpr double kSettleSec = 0.15;     // discard after a retune (driver buffers)
 constexpr size_t kMaxHistRows = 3600;
 constexpr double kMaxQueueSec = 1.0;
 
@@ -57,6 +57,7 @@ std::unique_ptr<SdrSource> makeSource(const std::string& type)
     if (type == "hackrf") return std::make_unique<HackRfSource>();
 #endif
     if (type == "rtlsdr") return std::make_unique<RtlSdrSource>();
+    if (type == "rtltcp") return std::make_unique<RtlTcpSource>();
     return nullptr;
 }
 
@@ -73,10 +74,12 @@ int64_t Scanner::nowMs() const
                std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
-std::vector<SdrDeviceInfo> Scanner::listDevices(const std::string& type)
+std::vector<SdrDeviceInfo> Scanner::listDevices(const std::string& type, const std::string& address)
 {
     auto s = makeSource(type);
     if (!s) return {};
+    if (type == "rtltcp")
+        s->setAddress(address);
     return s->listDevices();
 }
 
@@ -126,7 +129,7 @@ bool Scanner::start(const Config& cfg, std::string& err)
     }
     else
     {
-        src_->setAddress(cfg.plutoUri);
+        src_->setAddress(cfg.device == "rtltcp" ? cfg.rtlTcpAddress : cfg.plutoUri);
         src_->setSampleRate(cfg.sampleRate);
         src_->setGain(cfg.gainDb);
         src_->setPpm(cfg.ppm);
@@ -279,7 +282,7 @@ void Scanner::tune(int w)
         queue_.clear();
         queuedSamples_ = 0;
     }
-    skip_ = (uint64_t)(fs_ * kSettleSec);
+    skip_ = (uint64_t)(fs_ * src_->retuneSettleSec());
     fftFill_ = welchN_ = 0;
     std::fill(welch_.begin(), welch_.end(), 0.0);
     avgRing_.clear();

@@ -9,7 +9,7 @@ and lets you listen, browse and download them from a web browser.
 
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-1e90ff)
 ![Language](https://img.shields.io/badge/C%2B%2B-17-1e90ff)
-![SDR](https://img.shields.io/badge/SDR-RTL--SDR%20%7C%20Airspy%20%7C%20Airspy%20HF%2B%20%7C%20SDRplay%20%7C%20HackRF%20%7C%20PlutoSDR-1e90ff)
+![SDR](https://img.shields.io/badge/SDR-RTL--SDR%20%7C%20rtl__tcp%20%7C%20Airspy%20%7C%20Airspy%20HF%2B%20%7C%20SDRplay%20%7C%20HackRF%20%7C%20PlutoSDR-1e90ff)
 ![License](https://img.shields.io/badge/license-GPLv3-1e90ff)
 
 [Features](#features) · [Supported SDRs](#supported-sdrs) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [How it works](#how-it-works) · [API](#http-api)
@@ -37,6 +37,7 @@ and lets you listen, browse and download them from a web browser.
 | SDR | Models | Sample rates | Build requirement |
 |---|---|---|---|
 | **RTL-SDR** | Any RTL2832U dongle: RTL-SDR Blog V3 / V4, Nooelec NESDR (Mini, SMArt), generic R820T / R820T2 / R828D / E4000 sticks | 1.024 – 3.2 MS/s (2.4 recommended) | `librtlsdr` (always required) |
+| **RTL-SDR over the network** | Any `rtl_tcp` server: `rtl_tcp` on a Raspberry Pi / PC, SDR++ / SDR# rtl_tcp server, Android "RTL-SDR driver" | 1.024 – 3.2 MS/s (2.4 recommended; LAN bandwidth ≈ 2 bytes per sample) | none (built in) |
 | **Airspy** | Airspy R2, Airspy Mini | 2.5 · 3 · 6 · 10 MS/s | `libairspy` (optional) |
 | **Airspy HF+** | Airspy HF+ Dual Port, HF+ Discovery (VHF input: 60 – 260 MHz) | 192 – 912 kS/s (768 recommended) | `libairspyhf` (optional) |
 | **SDRplay** | RSP1, RSP1A, RSP1B, RSP2, RSPduo, RSPdx, RSPdx R2 | 2 – 10 MS/s | SDRplay API 3.x (optional) |
@@ -48,6 +49,17 @@ and lets you listen, browse and download them from a web browser.
 - A wider sample rate covers more of the airband at once (fewer hops), but uses more CPU.
 - **RTL-SDR Blog V4** needs the [rtl-sdr-blog](https://github.com/rtlsdrblog/rtl-sdr-blog) driver, a newer `librtlsdr` than most Linux distributions ship.
 - **Airspy HF+** has a narrow bandwidth (under 1 MHz), so it hops through 118–137 MHz in about 30 steps. For quicker coverage, narrow the scan ranges to your local frequencies. Gain `-1` turns on AGC; 0–48 sets the attenuator (48 = none).
+
+### RTL-SDR over the network (rtl_tcp)
+
+Put the dongle next to the antenna and run AirBandScan on another computer.
+1. On the computer with the dongle, start the server so it listens on the network:
+   ```bash
+   rtl_tcp -a 0.0.0.0          # Debian / Raspberry Pi OS: sudo apt install rtl-sdr
+   ```
+2. In AirBandScan, choose **Settings → Device type → RTL-SDR (rtl_tcp)** and enter the server as `host:port`, e.g. `192.168.1.20:1234` (port 1234 is the default). **Test** checks the connection.
+
+Gain, ppm and bias-T are sent to the server. A 2.4 MS/s stream is about 4.8 MB/s, so wired Ethernet or good Wi-Fi is needed. rtl_tcp has no security: only use it on a trusted network.
 
 ### PlutoSDR
 

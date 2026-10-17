@@ -61,7 +61,7 @@ int kindOf(const std::string& k)
 
 const char* deviceTypes()
 {
-    return "[\"rtlsdr\""
+    return "[\"rtlsdr\",\"rtltcp\""
 #if defined(HAS_AIRSPY)
            ",\"airspy\""
 #endif
@@ -296,7 +296,13 @@ HttpResponse App::route(const HttpRequest& req)
 
     if (p == "/api/devices")
     {
-        auto list = Scanner::listDevices(req.q("type", "rtlsdr"));
+        std::string addr = req.q("address", "");
+        if (addr.empty())
+        {
+            std::lock_guard<std::mutex> lk(cfgMtx);
+            addr = cfg.rtlTcpAddress;
+        }
+        auto list = Scanner::listDevices(req.q("type", "rtlsdr"), addr);
         std::ostringstream o;
         o << '[';
         for (size_t i = 0; i < list.size(); ++i)

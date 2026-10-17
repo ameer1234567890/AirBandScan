@@ -4,13 +4,15 @@ autostart = 1
 bias_tee = 0
 channel_bw_khz = 8
 channel_step_khz = 8.333333
-# device: rtlsdr | airspy | airspyhf | sdrplay | hackrf | pluto | wav
+# device: rtlsdr | rtltcp | airspy | airspyhf | sdrplay | hackrf | pluto | wav
 device = rtlsdr
 device_index = 0
 dwell_ms = 500
 gain_db = 40
 http_bind = 0.0.0.0
 http_port = 8080
+# rtl_tcp server (device = rtltcp): host:port
+# rtltcp_address = 127.0.0.1:1234
 # PlutoSDR address: ip:192.168.2.1 (USB network / Ethernet), ip:pluto.local, usb:1.4.5; empty = auto
 # pluto_uri = ip:192.168.2.1
 ignored = 131.525, 131.55, 131.725, 131.825, 136.7-136.975

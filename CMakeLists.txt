@@ -73,6 +73,7 @@ add_executable(airbandscan
     src/web/http_server.cpp
     src/web/api.cpp
     src/sdr/rtl_sdr_source.cpp
+    src/sdr/rtl_tcp_source.cpp
     src/sdr/wav_file_source.cpp
     src/dsp/jfft.cpp
     src/util/log.cpp
@@ -157,7 +158,10 @@ install(TARGETS airbandscan RUNTIME DESTINATION bin)
 add_executable(hop_test EXCLUDE_FROM_ALL
     tests/hop_test.cpp src/engine/config.cpp src/engine/scanner.cpp src/engine/channel.cpp
     src/engine/classifier.cpp src/engine/recording_store.cpp src/audio/audio_files.cpp
-    src/sdr/rtl_sdr_source.cpp src/sdr/wav_file_source.cpp src/dsp/jfft.cpp src/util/log.cpp)
+    src/sdr/rtl_sdr_source.cpp src/sdr/rtl_tcp_source.cpp src/sdr/wav_file_source.cpp src/dsp/jfft.cpp src/util/log.cpp)
 target_include_directories(hop_test PRIVATE src tests ${RTLSDR_INCLUDE_DIRS})
 target_compile_definitions(hop_test PRIVATE AIRBANDSCAN_SIM _USE_MATH_DEFINES)
 target_link_libraries(hop_test PRIVATE ${RTLSDR_LIBRARIES} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    target_link_libraries(hop_test PRIVATE ws2_32)
+endif()

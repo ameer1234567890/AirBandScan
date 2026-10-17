@@ -1,5 +1,7 @@
 #include "engine/config.h"
 
+#include "sdr/rtl_tcp_source.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -105,6 +107,7 @@ std::map<std::string, std::string> Config::toMap() const
     m["bias_tee"] = biasTee ? "1" : "0";
     m["wav_path"] = wavPath;
     m["pluto_uri"] = plutoUri;
+    m["rtltcp_address"] = rtlTcpAddress;
     m["wav_center_mhz"] = num(wavCenterHz / 1e6);
     m["ranges"] = formatRanges(ranges);
     m["ignored"] = formatRanges(ignored);
@@ -148,7 +151,7 @@ bool Config::fromMap(const std::map<std::string, std::string>& kv, std::string& 
 
         if (key == "device")
         {
-            if (v != "rtlsdr" && v != "airspy" && v != "airspyhf" && v != "sdrplay" && v != "hackrf" && v != "pluto" && v != "wav"
+            if (v != "rtlsdr" && v != "rtltcp" && v != "airspy" && v != "airspyhf" && v != "sdrplay" && v != "hackrf" && v != "pluto" && v != "wav"
 #if defined(AIRBANDSCAN_SIM)
                 && v != "sim"
 #endif
@@ -165,6 +168,17 @@ bool Config::fromMap(const std::map<std::string, std::string>& kv, std::string& 
         else if (key == "ppm") { if (!needNum(-200, 200)) return false; c.ppm = d; }
         else if (key == "bias_tee") c.biasTee = toBool(v);
         else if (key == "wav_path") c.wavPath = v;
+        else if (key == "rtltcp_address")
+        {
+            std::string h;
+            int port = 0;
+            if (!RtlTcpSource::parseAddress(v, h, port))
+            {
+                err = "rtltcp_address: expected host:port, e.g. 192.168.1.20:1234";
+                return false;
+            }
+            c.rtlTcpAddress = v;
+        }
         else if (key == "pluto_uri")
         {
             if (v.size() > 200 || v.find_first_of(" \t\r\n") != std::string::npos)
