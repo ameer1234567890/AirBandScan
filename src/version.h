@@ -1,5 +1,5 @@
 #pragma once
 // Release builds pass -DAPP_VERSION=x.y.z to CMake, which overrides this.
 #ifndef AIRBANDSCAN_VERSION
-#define AIRBANDSCAN_VERSION "1.0.0"
+#define AIRBANDSCAN_VERSION "1.1.0"
 #endif
