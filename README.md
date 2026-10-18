@@ -16,6 +16,8 @@ Also decodes satellite pictures: SSTV from the ISS and CubeSats, and Meteor-M LR
 [Features](#features) · [Supported SDRs](#supported-sdrs) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [Satellites](#satellite-images-sstv-and-meteor-lrpt) · [How it works](#how-it-works) · [API](#http-api)
 
 <a href="https://www.paypal.com/donate/?hosted_button_id=KSWP8Q4NBCJW6" title="PayPal - The safer, easier way to pay online!"><img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="Donate with PayPal"></a>
+&nbsp;
+<a href="https://ko-fi.com/dhihacker" title="Support me on Ko-fi"><img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" height="36" alt="Buy Me a Coffee at ko-fi.com"></a>
 
 </div>
 
