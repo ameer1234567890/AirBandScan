@@ -29,6 +29,15 @@ preroll_ms = 300
 ranges = 118-137
 recordings_dir = recordings
 retention_days = 0
+# What runs (and starts at launch): scanner (airband) | satellite (SSTV / Meteor LRPT)
+run_mode = scanner
+# Satellite receiver: sat_mode sstv | lrpt; ISS SSTV 145.8, Meteor-M LRPT 137.9 (or 137.1)
+sat_mode = sstv
+sat_freq_mhz = 145.8
+# m2x = Meteor-M N2-3 / N2-4 (OQPSK); m2 = retired Meteor-M N2 (QPSK)
+sat_lrpt_variant = m2x
+# FM channel width for SSTV, Doppler included
+sat_sstv_bw_khz = 30
 sample_rate = 2400000
 start_level_db = 6
 stop_level_db = 3

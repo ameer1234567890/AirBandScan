@@ -60,6 +60,13 @@ struct Config
     bool   keepOther = true; // keep audio + spectrogram of non-voice signals
     int    retentionDays = 0; // 0 = keep forever
 
+    // ---- Satellites (SSTV / Meteor-M LRPT; the SDR is used by one or the other) ----
+    std::string runMode = "scanner";  // scanner | satellite: what runs (and autostarts)
+    std::string satMode = "sstv";     // sstv | lrpt
+    double satFreqHz = 145.800e6;     // ISS SSTV downlink
+    std::string satLrptVariant = "m2x"; // m2x: Meteor-M N2-3/N2-4 (OQPSK); m2: old N2 (QPSK)
+    double satSstvBwHz = 30000.0;     // FM channel width for SSTV (Doppler included)
+
     // ---- Web ----
     std::string httpBind = "0.0.0.0";
     int    httpPort = 8080;

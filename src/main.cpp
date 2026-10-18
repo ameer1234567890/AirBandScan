@@ -5,6 +5,7 @@
 // undecoded signals, settings). Runs on Windows and Linux.
 
 #include "audio/audio_files.h"
+#include "sat/offline.h"
 #include "util/log.h"
 #include "version.h"
 #include "web/api.h"
@@ -33,7 +34,14 @@ static void usage()
         "  -p, --port N        web interface port (overrides config)\n"
         "  -d, --dir DIR       recordings directory (overrides config)\n"
         "      --no-autostart  start with the scanner stopped\n"
-        "  -h, --help          this help\n",
+        "  -h, --help          this help\n"
+        "\n"
+        "decode a recording and exit (pictures are written to -o DIR, default .):\n"
+        "      --decode-sstv FILE    SSTV from receiver audio (WAV)\n"
+        "      --decode-lrpt FILE    Meteor-M LRPT from an IQ WAV centred on the signal,\n"
+        "                            8-bit soft symbols (.s) or CADUs (.cadu)\n"
+        "      --meteor m2x|m2       m2x = Meteor-M N2-3 / N2-4 (default), m2 = old N2\n"
+        "  -o, --out DIR             output directory\n",
         AIRBANDSCAN_VERSION);
 }
 
@@ -43,6 +51,7 @@ int main(int argc, char** argv)
     int portOverride = 0;
     std::string dirOverride;
     bool noAutostart = false;
+    std::string decodeSstv, decodeLrpt, outDir = ".", meteor = "m2x";
 
     for (int i = 1; i < argc; ++i)
     {
@@ -55,8 +64,19 @@ int main(int argc, char** argv)
         else if (a == "-p" || a == "--port") portOverride = std::atoi(next().c_str());
         else if (a == "-d" || a == "--dir") dirOverride = next();
         else if (a == "--no-autostart") noAutostart = true;
+        else if (a == "--decode-sstv") decodeSstv = next();
+        else if (a == "--decode-lrpt") decodeLrpt = next();
+        else if (a == "--meteor") meteor = next();
+        else if (a == "-o" || a == "--out") outDir = next();
         else if (a == "-h" || a == "--help") { usage(); return 0; }
         else { std::fprintf(stderr, "unknown option: %s\n", a.c_str()); usage(); return 2; }
+    }
+
+    if (!decodeSstv.empty()) return decodeSstvFile(decodeSstv, outDir);
+    if (!decodeLrpt.empty())
+    {
+        if (meteor != "m2x" && meteor != "m2") { std::fprintf(stderr, "--meteor: m2x or m2\n"); return 2; }
+        return decodeLrptFile(decodeLrpt, outDir, meteor);
     }
 
     std::string err;
@@ -81,6 +101,7 @@ int main(int argc, char** argv)
     app.store.setRoot(app.cfg.recordingsDir);
     app.store.load();
     app.store.cleanup(app.cfg.retentionDays);
+    app.setStoreRoots(app.cfg);
 
     if (!app.http.start(app.cfg.httpBind, app.cfg.httpPort,
                         [&app](const HttpRequest& r) { return app.route(r); }, err))
@@ -92,8 +113,9 @@ int main(int argc, char** argv)
 
     if (app.cfg.autostart && !noAutostart)
     {
-        if (!app.startScanner(err))
-            logWrite("[main] scanner not started: %s (fix it in Settings)", err.c_str());
+        if (!app.startActive(err))
+            logWrite("[main] %s not started: %s (fix it in Settings)",
+                     app.cfg.runMode == "satellite" ? "satellite receiver" : "scanner", err.c_str());
     }
 
     std::signal(SIGINT, onSignal);
@@ -116,7 +138,7 @@ int main(int argc, char** argv)
     }
 
     logWrite("[main] shutting down");
-    app.stopScanner();
+    app.stopAll();
     app.http.stop();
     return 0;
 }

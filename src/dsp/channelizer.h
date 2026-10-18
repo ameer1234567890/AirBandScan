@@ -86,7 +86,9 @@ class Channelizer
 {
 public:
     // fs: wideband rate. offsetHz: channel - SDR centre. bwHz: total channel width.
-    Channelizer(double fs, double offsetHz, double bwHz, double targetRate = 16000.0)
+    // transHz: transition band of the final channel filter.
+    Channelizer(double fs, double offsetHz, double bwHz, double targetRate = 16000.0,
+                double transHz = 1500.0)
     {
         fs_ = fs;
         double inc = -2.0 * M_PI * offsetHz / fs;
@@ -138,7 +140,7 @@ public:
         outRate_ = rate;
 
         // Final sharp channel filter (rejects the neighbouring 8.33 kHz channel).
-        int taps = (int)std::ceil(5.5 * outRate_ / 1500.0) | 1;
+        int taps = (int)std::ceil(5.5 * outRate_ / transHz) | 1;
         chan_.init(designLowPass(outRate_, pass, taps), 1);
     }
 

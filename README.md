@@ -5,14 +5,15 @@
 ### Automatic VHF airband scanner and voice recorder
 
 Scans the aviation band with an SDR, records every voice call on its own,<br>
-and lets you listen, browse and download them from a web browser.
+and lets you listen, browse and download them from a web browser.<br>
+Also decodes satellite pictures: SSTV from the ISS and CubeSats, and Meteor-M LRPT weather images.
 
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-1e90ff)
 ![Language](https://img.shields.io/badge/C%2B%2B-17-1e90ff)
 ![SDR](https://img.shields.io/badge/SDR-RTL--SDR%20%7C%20rtl__tcp%20%7C%20Airspy%20%7C%20Airspy%20HF%2B%20%7C%20SDRplay%20%7C%20HackRF%20%7C%20PlutoSDR-1e90ff)
 ![License](https://img.shields.io/badge/license-GPLv3-1e90ff)
 
-[Features](#features) · [Supported SDRs](#supported-sdrs) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [How it works](#how-it-works) · [API](#http-api)
+[Features](#features) · [Supported SDRs](#supported-sdrs) · [Screenshots](#screenshots) · [Install](#install) · [Usage](#usage) · [Satellites](#satellite-images-sstv-and-meteor-lrpt) · [How it works](#how-it-works) · [API](#http-api)
 
 <a href="https://www.paypal.com/donate/?hosted_button_id=KSWP8Q4NBCJW6" title="PayPal - The safer, easier way to pay online!"><img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="Donate with PayPal"></a>
 
@@ -30,6 +31,7 @@ and lets you listen, browse and download them from a web browser.
 - 🌈 **Spectrum page:** live spectrum, waterfall and activity history, plus a spectrogram of every signal that was *not* recognised as voice.
 - ✈️ **Voice only:** ACARS and VDL2 data channels are ignored by default.
 - 📻 **AM or NFM:** AM for the airband, or narrow-band FM (marine, PMR, amateur, business radio), with 8.33 / 25 / 12.5 / 6.25 / 5 kHz channel rasters.
+- 🛰️ **Satellite images:** SSTV pictures from the ISS (ARISS events, PD120 / PD180) and CubeSats (Robot 36 / 72, Martin, Scottie, all PD modes), and **Meteor-M N2-3 / N2-4 LRPT** weather images (false-colour composite plus every MSU-MR channel), decoded live and kept in a gallery. Doppler is followed automatically, so no tracking software is needed.
 - ⚙️ **Web settings:** device, gain, ranges, thresholds and MP3 options, all from the browser.
 - 🖥️ **Single native program:** C++17, no Python, runs as a desktop app or headless server on Windows and Linux; open it from any phone or PC on your network.
 
@@ -90,6 +92,10 @@ Gain, ppm and bias-T are sent to the server. A 2.4 MS/s stream is about 4.8 MB/s
 **Spectrum & undecoded signals**
 
 <img src="docs/spectrum.png" width="900" alt="Spectrum page">
+
+**Satellites (SSTV & Meteor-M LRPT)**
+
+<img src="docs/satellites.png" width="900" alt="Satellites page">
 
 **Settings**
 
@@ -157,6 +163,7 @@ For an RTL-SDR on Windows, install the WinUSB driver with [Zadig](https://zadig.
 
 ```
 airbandscan [-c airband.conf] [-p 8080] [-d recordings] [--no-autostart]
+airbandscan --decode-sstv FILE | --decode-lrpt FILE [--meteor m2x|m2] [-o DIR]
 ```
 
 1. Plug in your SDR and start `airbandscan`.
@@ -176,6 +183,39 @@ On first start a commented `airband.conf` is created; see [`airband.conf.example
 | Don't want ATIS / VOLMET? Add them to **Ignore** | Continuous broadcasts are otherwise split every *Maximum length* seconds |
 | Scanning FM radio (marine, PMR446, amateur)? Set **Modulation** to *NFM*, **Channel width** 12.5 kHz (25 kHz channels: 16 kHz) and the matching **Channel raster**, e.g. 6.25 or 12.5 kHz | Airband voice is AM; most other VHF/UHF voice is narrow FM. All scan ranges use the same modulation |
 
+## Satellite images (SSTV and Meteor LRPT)
+
+Open **Satellites**, choose a satellite and press **Start receiving**. The SDR then stays on
+that frequency instead of scanning the airband. **Stop & resume scanner** goes back to scanning.
+The mode you used last is the one started at launch.
+
+| Preset | Frequency | What you get |
+|---|---|---|
+| **ISS — SSTV** | 145.800 MHz FM | ARISS SSTV events, usually PD120 or PD180 (640 × 496) |
+| **Meteor-M N2-3 / N2-4 — LRPT** | 137.900 MHz (137.100 MHz alternate) | 1568 px wide MSU-MR images: 221 false-colour composite + each channel |
+| **Other** | any | SSTV from CubeSats or amateur stations (e.g. 435–438 MHz), or LRPT on another frequency |
+
+- **Leave it running:** every SSTV picture is found by its VIS header and saved on its own. A Meteor pass is saved when its signal has been gone for 90 s. Pictures appear in **Decoded images** and update live while they arrive.
+- **No tracking needed:** Doppler (±3.5 kHz) and dongle frequency error (up to ±20 kHz for LRPT) are followed automatically.
+- **SSTV modes:** PD50, PD90, PD120, PD160, PD180, PD240, PD290, Robot 36, Robot 72, Martin M1 / M2, Scottie S1 / S2 / DX. Slant from the transmitter's clock error is corrected from the sync pulses.
+- **Meteor LRPT:** 72 ksym/s OQPSK with NRZ-M (N2-3 and N2-4); choose *N2 (QPSK)* for recordings of the retired Meteor-M N2. The 80k interleaved test mode is not supported.
+- **Antenna:** a V-dipole or QFH tuned for 137 MHz for Meteor; a vertical or small Yagi for the ISS. LRPT needs a clear sky view; SSTV from the ISS works with a simple antenna.
+- **SDR:** any of the supported SDRs. An RTL-SDR runs at 1.024 MS/s in satellite mode to save CPU; other SDRs use the sample rate from Settings. PlutoSDR needs the AD9364 range for 137 / 145 MHz.
+- **Orientation:** on northbound passes the Meteor image is upside down (north at the bottom). That is how the satellite scans.
+
+Find pass times with any satellite tracker (Heavens-Above, Gpredict, the ARISS SSTV event page).
+
+### Decode a recording from the command line
+
+```bash
+# SSTV from receiver audio (any WAV: from a radio, SDR# / SDR++ audio recording, …)
+airbandscan --decode-sstv iss_pass.wav -o pictures
+
+# Meteor LRPT from an IQ recording centred on the signal (≥ 144 kS/s), 8-bit soft symbols (.s) or CADUs (.cadu)
+airbandscan --decode-lrpt meteor_baseband.wav -o pictures
+airbandscan --decode-lrpt old_meteor_m2.wav --meteor m2 -o pictures   # retired Meteor-M N2 (QPSK)
+```
+
 ## How it works
 
 ```
@@ -183,6 +223,14 @@ On first start a commented `airband.conf` is created; see [`airband.conf.example
                                                                                                       │
                                        Voice recordings (WAV + MP3)  ◄── voice ───────────────────────┤
                                        Spectrum & undecoded (+ spectrogram) ◄── not voice ────────────┘
+```
+
+Satellites (one SDR, instead of the scanner):
+
+```
+ SDR ──► channel ──► FM demod ──► 1900 Hz FM-to-frequency ──► VIS header ──► sync-locked lines ──► SSTV picture
+     └─► channel ──► (O)QPSK demod (x⁴ FFT acquisition, Costas, Gardner) ──► Viterbi r=½ K=7 ──► NRZ-M
+         ──► 1ACFFC1D frame sync ──► derandomise ──► Reed-Solomon (255,223)×4 ──► CCSDS packets ──► MSU-MR JPEG ──► image
 ```
 
 1. **Scan:** ranges are split into windows of 80 % of the sample rate; the scanner hops between them.
@@ -205,6 +253,9 @@ recordings/2026-10-14/20261014-131915-832-0119700.wav    audio (8 kHz mono)
 
 The list is rebuilt from the `.meta` files at start-up, so recordings can be copied, moved or deleted with normal file tools.
 
+Satellite images go to `recordings/images/YYYY-MM-DD/`: `<id>.png` (picture or LRPT composite), `<id>_thumb.png`,
+`<id>_ch1.png` … (LRPT channels) and `<id>.imeta`.
+
 ## HTTP API
 
 | Method | Path | Description |
@@ -217,7 +268,11 @@ The list is rebuilt from the `.meta` files at start-up, so recordings can be cop
 | POST | `/api/rec/<id>/voice?v=1\|0` · `/api/rec/<id>/delete` | relabel / delete |
 | POST | `/api/recordings/delete?kind=other` | delete a whole list |
 | GET / POST | `/api/config` | read / save settings |
-| POST | `/api/start` · `/api/stop` | start / stop the scanner |
+| POST | `/api/start` · `/api/stop` | start / stop (the scanner, or the satellite receiver in satellite mode) |
+| POST | `/api/sat/start` (`sat_mode=sstv\|lrpt`, `sat_freq_mhz`, `sat_lrpt_variant=m2x\|m2`) · `/api/sat/stop` | satellite receiver on / back to the scanner |
+| GET | `/api/sat/status` · `/api/sat/live.png` | receiver state, lock, constellation · picture in progress |
+| GET | `/api/images?kind=sstv\|lrpt&limit&offset` · `/img/<id>.png` (`_thumb`, `_chN`) | decoded images |
+| POST | `/api/img/<id>/delete` | delete an image |
 
 > ⚠️ The web interface has no login. Keep it on your home network, or set **Listen address** to `127.0.0.1`.
 
@@ -230,6 +285,14 @@ python3 tools/make_test_iq.py test_iq.wav speech1.wav speech2.wav
 
 # Range-hopping test with a simulated SDR
 ninja -C build hop_test && ./build/hop_test
+
+# SSTV: a test picture in any mode, as audio, or FM-modulated IQ with Doppler and noise
+python3 tools/make_test_sstv.py PD120 sstv.wav && ./build/airbandscan --decode-sstv sstv.wav
+python3 tools/make_test_sstv.py PD180 iss_iq.wav --iq --rate 250000 --offset 40000
+# → device "IQ WAV file", centre 145.76 MHz; Satellites → ISS
+
+# Meteor LRPT: re-modulate decoded CADUs (e.g. a SatDump .cadu) as OQPSK with Doppler and noise
+python3 tools/make_test_lrpt.py pass.cadu lrpt_iq.wav --snr 6 && ./build/airbandscan --decode-lrpt lrpt_iq.wav
 ```
 
 ## Credits
@@ -239,6 +302,10 @@ AirBandScan builds on three open-source projects:
 - **[AirScope](https://github.com/SarahRoseLives/AirScope)**: SDR drivers and DSP (voice path only; ACARS, VDL2 and ADS-B removed)
 - **[rtl-sdr-scanner-cpp](https://github.com/shajen/rtl-sdr-scanner-cpp)**: scanning and transmission-detection logic, ported off GNU Radio
 - **[sdr-monitor](https://github.com/shajen/sdr-monitor)**: the idea for the recordings and spectrogram web pages
+
+The SSTV and LRPT decoders are written for AirBandScan. The Meteor link parameters and MSU-MR image format follow
+[SatDump](https://github.com/SatDump/SatDump) and [meteor_decoder](https://github.com/artlav/meteor_decoder).
+PNG output uses [stb_image_write](https://github.com/nothings/stb) (public domain).
 
 ## License
 

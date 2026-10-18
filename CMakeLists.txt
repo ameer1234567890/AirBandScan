@@ -77,9 +77,20 @@ add_executable(airbandscan
     src/sdr/wav_file_source.cpp
     src/dsp/jfft.cpp
     src/util/log.cpp
+    src/sat/image.cpp
+    src/sat/image_store.cpp
+    src/sat/lrpt_decoder.cpp
+    src/sat/msumr.cpp
+    src/sat/offline.cpp
+    src/sat/psk_demod.cpp
+    src/sat/reed_solomon.cpp
+    src/sat/sat_receiver.cpp
+    src/sat/sstv.cpp
+    src/sat/viterbi.cpp
+    src/sat/wav_reader.cpp
     ${UI_CPP}
 )
-target_include_directories(airbandscan PRIVATE src ${RTLSDR_INCLUDE_DIRS})
+target_include_directories(airbandscan PRIVATE src third_party ${RTLSDR_INCLUDE_DIRS})
 target_link_directories(airbandscan PRIVATE ${RTLSDR_LIBRARY_DIRS})
 target_compile_definitions(airbandscan PRIVATE _USE_MATH_DEFINES)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")

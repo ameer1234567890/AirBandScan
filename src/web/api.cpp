@@ -82,6 +82,26 @@ const char* deviceTypes()
 
 } // namespace
 
+void App::setStoreRoots(const Config& c)
+{
+    std::string imgRoot = (fs::path(c.recordingsDir) / "images").string();
+    if (images.root() != imgRoot)
+    {
+        images.setRoot(imgRoot);
+        images.load();
+    }
+}
+
+bool App::startActive(std::string& err)
+{
+    std::string mode;
+    {
+        std::lock_guard<std::mutex> l2(cfgMtx);
+        mode = cfg.runMode;
+    }
+    return mode == "satellite" ? startSat(err) : startScanner(err);
+}
+
 bool App::startScanner(std::string& err)
 {
     std::lock_guard<std::mutex> lk(ctlMtx);
@@ -90,14 +110,147 @@ bool App::startScanner(std::string& err)
         std::lock_guard<std::mutex> l2(cfgMtx);
         c = cfg;
     }
+    sat.stop();
     store.setRoot(c.recordingsDir);
+    setStoreRoots(c);
     return scanner.start(c, err);
 }
 
-void App::stopScanner()
+bool App::startSat(std::string& err)
+{
+    std::lock_guard<std::mutex> lk(ctlMtx);
+    Config c;
+    {
+        std::lock_guard<std::mutex> l2(cfgMtx);
+        c = cfg;
+    }
+    scanner.stop();
+    setStoreRoots(c);
+    return sat.start(c, err);
+}
+
+void App::stopAll()
 {
     std::lock_guard<std::mutex> lk(ctlMtx);
     scanner.stop();
+    sat.stop();
+}
+
+std::string App::runMode()
+{
+    std::lock_guard<std::mutex> lk(cfgMtx);
+    return cfg.runMode;
+}
+
+HttpResponse App::routeSat(const HttpRequest& req)
+{
+    const std::string& p = req.path;
+    const bool post = req.method == "POST";
+
+    if (p == "/api/sat/status")
+    {
+        SatReceiver::Status s = sat.status();
+        std::ostringstream o;
+        o << "{\"running\":" << (s.running ? 1 : 0) << ",\"error\":" << jsonEscape(s.error)
+          << ",\"mode\":" << jsonEscape(s.mode) << ",\"variant\":" << jsonEscape(s.variant)
+          << ",\"device\":" << jsonEscape(s.device) << ",\"freq\":" << fmt(s.freqHz, 0)
+          << ",\"fs\":" << fmt(s.fs, 0) << ",\"chRate\":" << fmt(s.chRate, 0)
+          << ",\"level\":" << fmt(s.levelDb, 1) << ",\"started\":" << s.startedMs
+          << ",\"drops\":" << s.drops << ",\"fileDone\":" << (s.fileDone ? 1 : 0)
+          << ",\"sstvBusy\":" << (s.sstvBusy ? 1 : 0) << ",\"sstvMode\":" << jsonEscape(s.sstvMode)
+          << ",\"sstvRows\":" << s.sstvRows << ",\"sstvTotal\":" << s.sstvTotal << ",\"tone\":" << fmt(s.tone, 0)
+          << ",\"carrier\":" << (s.carrier ? 1 : 0) << ",\"lockQ\":" << fmt(s.lockQ, 2)
+          << ",\"offset\":" << fmt(s.offsetHz, 0) << ",\"viterbi\":" << (s.viterbi ? 1 : 0)
+          << ",\"ber\":" << fmt(s.ber, 3) << ",\"frameSync\":" << (s.frameSync ? 1 : 0)
+          << ",\"frames\":" << s.frames << ",\"framesBad\":" << s.framesBad << ",\"packets\":" << s.packets
+          << ",\"rows\":" << s.rows << ",\"passActive\":" << (s.passActive ? 1 : 0)
+          << ",\"passStart\":" << s.passStartMs << ",\"channels\":[";
+        for (size_t i = 0; i < s.channels.size(); ++i) o << (i ? "," : "") << s.channels[i];
+        o << "],\"const\":[";
+        for (size_t i = 0; i < s.constellation.size(); ++i)
+            o << (i ? "," : "") << fmt(s.constellation[i].real(), 2) << ',' << fmt(s.constellation[i].imag(), 2);
+        o << "],\"saved\":" << s.imagesSaved << ",\"live\":" << s.liveVersion
+          << ",\"runMode\":" << jsonEscape(runMode()) << '}';
+        return HttpResponse::json(o.str());
+    }
+
+    if (p == "/api/sat/live.png")
+    {
+        std::string png = sat.livePng();
+        if (png.empty()) return HttpResponse::text(404, "no picture in progress");
+        HttpResponse r;
+        r.contentType = "image/png";
+        r.body = std::move(png);
+        r.headers["Cache-Control"] = "no-store";
+        return r;
+    }
+
+    // Start the satellite receiver: form fields sat_mode, sat_freq_mhz, sat_lrpt_variant.
+    if (p == "/api/sat/start" && post)
+    {
+        std::string err;
+        auto form = req.form();
+        form["run_mode"] = "satellite";
+        Config c;
+        {
+            std::lock_guard<std::mutex> lk(cfgMtx);
+            c = cfg;
+        }
+        if (!c.fromMap(form, err)) return HttpResponse::json("{\"ok\":0,\"error\":" + jsonEscape(err) + "}", 400);
+        {
+            std::lock_guard<std::mutex> lk(cfgMtx);
+            cfg = c;
+            if (!cfg.save(cfgPath)) logWrite("[api] cannot save %s", cfgPath.c_str());
+        }
+        bool ok = startSat(err);
+        return HttpResponse::json(std::string("{\"ok\":") + (ok ? "1" : "0") + ",\"error\":" + jsonEscape(err) + "}");
+    }
+
+    // Stop the satellite receiver and go back to scanning the airband.
+    if (p == "/api/sat/stop" && post)
+    {
+        {
+            std::lock_guard<std::mutex> lk(cfgMtx);
+            cfg.runMode = "scanner";
+            if (!cfg.save(cfgPath)) logWrite("[api] cannot save %s", cfgPath.c_str());
+        }
+        std::string err;
+        bool ok = req.q("scan", "1") == "1" ? startScanner(err) : (stopAll(), true);
+        return HttpResponse::json(std::string("{\"ok\":") + (ok ? "1" : "0") + ",\"error\":" + jsonEscape(err) + "}");
+    }
+
+    if (p == "/api/images")
+    {
+        int total = 0;
+        auto items = images.list(req.q("kind", ""), std::max(0, std::atoi(req.q("offset", "0").c_str())),
+                                 std::clamp(std::atoi(req.q("limit", "40").c_str()), 1, 500), total);
+        std::ostringstream o;
+        o << "{\"total\":" << total << ",\"version\":" << images.version() << ",\"items\":[";
+        for (size_t i = 0; i < items.size(); ++i)
+        {
+            auto& r = items[i];
+            o << (i ? "," : "") << "{\"id\":" << jsonEscape(r.id) << ",\"kind\":" << jsonEscape(r.kind)
+              << ",\"mode\":" << jsonEscape(r.mode) << ",\"t\":" << r.startMs << ",\"end\":" << r.endMs
+              << ",\"f\":" << fmt(r.freqHz, 0) << ",\"w\":" << r.w << ",\"h\":" << r.h
+              << ",\"complete\":" << (r.complete ? 1 : 0) << ",\"note\":" << jsonEscape(r.note) << ",\"files\":[";
+            for (size_t k = 0; k < r.files.size(); ++k) o << (k ? "," : "") << jsonEscape(r.files[k]);
+            o << "]}";
+        }
+        o << "]}";
+        return HttpResponse::json(o.str());
+    }
+
+    // /api/img/<id>/delete
+    if (p.rfind("/api/img/", 0) == 0 && post)
+    {
+        std::string rest = p.substr(9);
+        size_t sl = rest.find('/');
+        if (sl == std::string::npos || rest.substr(sl + 1) != "delete") return HttpResponse::text(404, "not found");
+        bool ok = images.remove(rest.substr(0, sl));
+        return HttpResponse::json(std::string("{\"ok\":") + (ok ? "1" : "0") + "}", ok ? 200 : 404);
+    }
+
+    return HttpResponse::text(404, "not found");
 }
 
 HttpResponse App::route(const HttpRequest& req)
@@ -148,7 +301,22 @@ HttpResponse App::route(const HttpRequest& req)
         return r;
     }
 
+    // ---- Satellite images: /img/<id>[_thumb|_chN].png ----
+    if (p.rfind("/img/", 0) == 0)
+    {
+        std::string path = images.file(p.substr(5));
+        if (path.empty() || !fs::exists(path)) return HttpResponse::text(404, "not found");
+        HttpResponse r;
+        r.filePath = path;
+        r.contentType = "image/png";
+        if (req.q("dl") == "1") r.downloadName = p.substr(5);
+        return r;
+    }
+
     if (p.rfind("/api/", 0) != 0) return HttpResponse::text(404, "not found");
+
+    if (p.rfind("/api/sat", 0) == 0 || p.rfind("/api/images", 0) == 0 || p.rfind("/api/img/", 0) == 0)
+        return routeSat(req);
 
     if (p == "/api/status")
     {
@@ -179,6 +347,8 @@ HttpResponse App::route(const HttpRequest& req)
           << ",\"fps\":" << fmt(s.framesPerSec, 1) << ",\"started\":" << s.startedMs
           << ",\"voiceCount\":" << nv << ",\"otherCount\":" << no
           << ",\"storeVersion\":" << store.version()
+          << ",\"runMode\":" << jsonEscape(runMode()) << ",\"satRunning\":" << (sat.running() ? 1 : 0)
+          << ",\"imageCount\":" << images.count() << ",\"imagesVersion\":" << images.version()
           << ",\"mp3\":" << jsonEscape(mp3Backend()) << '}';
         return HttpResponse::json(o.str());
     }
@@ -271,8 +441,8 @@ HttpResponse App::route(const HttpRequest& req)
                 store.setRoot(c.recordingsDir);
                 store.load();
             }
-            logWrite("[api] configuration updated, restarting scanner");
-            bool ok = startScanner(err);
+            logWrite("[api] configuration updated, restarting the %s", c.runMode == "satellite" ? "satellite receiver" : "scanner");
+            bool ok = startActive(err);
             return HttpResponse::json(std::string("{\"ok\":1,\"started\":") + (ok ? "1" : "0") +
                                       ",\"error\":" + jsonEscape(ok ? "" : err) + "}");
         }
@@ -318,7 +488,7 @@ HttpResponse App::route(const HttpRequest& req)
     if (p == "/api/start" && post)
     {
         std::string err;
-        bool ok = startScanner(err);
+        bool ok = startActive(err);
         return HttpResponse::json(std::string("{\"ok\":") + (ok ? "1" : "0") + ",\"error\":" + jsonEscape(err) + "}");
     }
     if (p == "/api/stop" && post)

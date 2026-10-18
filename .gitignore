@@ -5,3 +5,5 @@ log.txt
 AeroScan.jpg
 dist/
 build-ci-*/
+__pycache__/
+hoptest_rec/

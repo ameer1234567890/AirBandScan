@@ -74,6 +74,11 @@ int64_t Scanner::nowMs() const
                std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
+std::unique_ptr<SdrSource> Scanner::createSource(const std::string& type)
+{
+    return makeSource(type);
+}
+
 std::vector<SdrDeviceInfo> Scanner::listDevices(const std::string& type, const std::string& address)
 {
     auto s = makeSource(type);

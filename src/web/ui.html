@@ -29,6 +29,7 @@
   --shadow:0 1px 2px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -67,7 +68,7 @@ main{max-width:1280px;margin:0 auto;padding:16px}
 .phead{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .phead .sub{color:var(--muted);font-size:13px}
 .pbody{padding:14px}
-.grid{display:grid;gap:16px}
+.grid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
 
 /* ---- on air ---- */
 .onair{display:flex;gap:10px;flex-wrap:wrap;align-items:center;min-height:34px}
@@ -129,6 +130,22 @@ canvas.hist{display:block;width:100%;height:340px}
 .card .row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .card .reason{color:var(--muted);font-size:13px}
 
+/* ---- satellites ---- */
+.satgrid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.livebox{background:var(--spec-bg);border-radius:8px;min-height:240px;display:grid;place-items:center;overflow:hidden}
+.livebox img{display:block;max-width:100%;max-height:70vh;image-rendering:auto}
+.livebox .none{color:#94a3b8;padding:30px;text-align:center}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.kv span:nth-child(odd){color:var(--muted)}
+.lamp{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--line);margin-right:6px;vertical-align:middle}
+.lamp.on{background:var(--ok)}
+canvas.const{display:block;width:100%;aspect-ratio:1;background:var(--spec-bg);border-radius:8px}
+.imgcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.imgcard .thumb{display:block;background:var(--spec-bg);aspect-ratio:4/3;overflow:hidden}
+.imgcard .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.satform{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.satform label{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+
 /* ---- settings ---- */
 .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
 .field{display:grid;grid-template-columns:170px 1fr;gap:10px;align-items:center;padding:7px 0}
@@ -151,6 +168,12 @@ canvas.hist{display:block;width:100%;height:340px}
   .field{grid-template-columns:1fr}.field .hint{grid-column:1}
   .status .txt{display:none}
   .cards{grid-template-columns:1fr}
+  .satgrid{grid-template-columns:minmax(0,1fr)}
+  .satform label{width:100%}
+  .satform select,.satform input{flex:1;min-width:0;width:auto!important}
+  .satform .btn{flex:1;justify-content:center;white-space:normal}
+  .satform .spacer{display:none}
+  .imgcards{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -164,6 +187,7 @@ canvas.hist{display:block;width:100%;height:340px}
     <nav>
       <a href="#voice" data-page="voice">Voice recordings <span class="count" id="cVoice">0</span></a>
       <a href="#spectrum" data-page="spectrum">Spectrum &amp; undecoded <span class="count" id="cOther">0</span></a>
+      <a href="#sat" data-page="sat">Satellites <span class="count" id="cImg">0</span></a>
       <a href="#settings" data-page="settings">Settings</a>
     </nav>
     <div class="spacer"></div>
@@ -239,6 +263,46 @@ canvas.hist{display:block;width:100%;height:340px}
     </div>
   </section>
 
+  <!-- ================= SATELLITES ================= -->
+  <section class="page" id="page-sat">
+    <div class="grid">
+      <div class="panel">
+        <div class="phead"><h2>Satellite receiver</h2><span class="sub">SSTV pictures (ISS, CubeSats) and Meteor-M LRPT weather images · uses the SDR instead of the scanner</span></div>
+        <div class="pbody grid" style="gap:14px">
+          <div class="satform">
+            <label>Satellite <select id="satPreset"></select></label>
+            <label class="sat-custom">Mode <select id="satMode"><option value="sstv">SSTV (FM)</option><option value="lrpt">Meteor-M LRPT</option></select></label>
+            <label class="sat-custom">Frequency (MHz) <input type="number" id="satFreq" step="0.001" min="1" max="7000" style="width:120px"></label>
+            <label class="sat-lrpt">Satellite type <select id="satVariant"><option value="m2x">N2-3 / N2-4 (OQPSK)</option><option value="m2">N2 (QPSK, retired)</option></select></label>
+            <div class="spacer"></div>
+            <button class="btn primary" id="satStart">Start receiving</button>
+            <button class="btn" id="satStop" title="Stop and go back to scanning the airband">Stop &amp; resume scanner</button>
+          </div>
+          <div class="msg" id="satHint"></div>
+          <div class="satgrid">
+            <div class="livebox" id="satLiveBox"><div class="none">No picture in progress.</div></div>
+            <div class="grid" style="gap:12px">
+              <div class="kv" id="satInfo"></div>
+              <canvas class="const" id="satConst" title="Received symbols (LRPT): four tight clusters = good signal"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="phead">
+          <h2>Decoded images</h2><span class="sub" id="imgTotal"></span>
+          <div class="spacer"></div>
+          <div class="tools"><label>Show <select id="imgKind"><option value="">All</option><option value="sstv">SSTV</option><option value="lrpt">Meteor LRPT</option></select></label></div>
+        </div>
+        <div class="pbody">
+          <div class="imgcards" id="imgList"></div>
+          <div class="more" id="imgMore" hidden><button class="btn">Load more</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ================= SETTINGS ================= -->
   <section class="page" id="page-settings">
     <form id="cfgForm" autocomplete="off">
@@ -291,10 +355,10 @@ canvas.hist{display:block;width:100%;height:340px}
           <label class="field"><span>Listen address</span><input type="text" name="http_bind"></label>
           <label class="field"><span>Port</span><input type="number" name="http_port" min="1" max="65535"></label>
           <div class="field"><span></span><span class="hint">Address and port changes apply after a program restart.</span></div>
-          <label class="field"><span>Start scanning on launch</span><span><input type="checkbox" name="autostart"></span></label>
+          <label class="field"><span>Start on launch (scanner or satellite receiver, whichever ran last)</span><span><input type="checkbox" name="autostart"></span></label>
         </div></div>
       </div>
-      <div class="savebar"><span class="msg" id="cfgMsg"></span><button type="button" class="btn" id="cfgReset">Revert</button><button type="submit" class="btn primary">Save &amp; restart scanner</button></div>
+      <div class="savebar"><span class="msg" id="cfgMsg"></span><button type="button" class="btn" id="cfgReset">Revert</button><button type="submit" class="btn primary">Save &amp; restart</button></div>
     </form>
   </section>
 </main>
@@ -351,12 +415,13 @@ function fitCanvas(c) { const r = c.getBoundingClientRect(), d = devicePixelRati
 let page = "voice";
 function route() {
   page = (location.hash || "#voice").slice(1);
-  if (!["voice", "spectrum", "settings"].includes(page)) page = "voice";
+  if (!["voice", "spectrum", "sat", "settings"].includes(page)) page = "voice";
   document.querySelectorAll(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + page));
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.dataset.page === page));
   if (page === "settings") loadConfig();
   if (page === "spectrum") { histDirty = true; loadOther(true); }
   if (page === "voice") loadVoice(true);
+  if (page === "sat") { satFormInit(); loadImages(true); pollSat(); }
 }
 addEventListener("hashchange", route);
 
@@ -413,16 +478,19 @@ const autoQueue = [];
 async function pollStatus() {
   try {
     status = await api("/api/status");
-    const run = status.running, err = status.error;
+    const satMode = status.runMode === "satellite";
+    const run = satMode ? status.satRunning : status.running, err = satMode ? "" : status.error;
     $("#sDot").className = "dot " + (run ? "run" : err ? "err" : "");
-    let txt = run ? "Scanning" : err ? "Error" : "Stopped";
-    if (run && status.windows.length) { const w = status.windows[status.window];
+    let txt = run ? (satMode ? "Satellite receiver" : "Scanning") : err ? "Error" : "Stopped";
+    if (satMode && run && satSt) txt += " · " + (satSt.mode === "lrpt" ? "LRPT " : "SSTV ") + fmtF(satSt.freq) + " MHz";
+    if (!satMode && run && status.windows.length) { const w = status.windows[status.window];
       txt += " " + fmtF(w.lo) + "–" + fmtF(w.hi) + " MHz" + (status.windows.length > 1 ? " (" + (status.window + 1) + "/" + status.windows.length + ")" : ""); }
     $("#sTxt").textContent = txt;
     $("#runBtn").textContent = run ? "Stop" : "Start";
     $("#runBtn").className = "btn" + (run ? "" : " primary");
     const b = $("#errBanner"); b.style.display = err ? "block" : "none"; if (err) b.textContent = "Scanner: " + err + " — check Settings.";
-    $("#cVoice").textContent = status.voiceCount; $("#cOther").textContent = status.otherCount;
+    $("#cVoice").textContent = status.voiceCount; $("#cOther").textContent = status.otherCount; $("#cImg").textContent = status.imageCount;
+    if (status.imagesVersion !== imgVersion) { imgVersion = status.imagesVersion; if (page === "sat") loadImages(false); }
     $("#scanInfo").textContent = run ? status.device + " · " + (status.fs / 1e6).toFixed(3) + " MS/s · " + status.detections + " detections this session" + (status.drops ? " · " + status.drops + " dropped blocks" : "") : "";
     renderOnAir();
     if (status.storeVersion !== storeVersion) { storeVersion = status.storeVersion;
@@ -437,6 +505,7 @@ $("#runBtn").onclick = async () => {
 };
 function renderOnAir() {
   const box = $("#onair"); const live = (status && status.live) || [];
+  if (status && status.runMode === "satellite") { box.innerHTML = '<span class="none">The SDR is in use by the satellite receiver — <a href="#sat">Satellites</a>.</span>'; return; }
   if (!status || !status.running) { box.innerHTML = '<span class="none">Scanner stopped.</span>'; return; }
   if (!live.length) { box.innerHTML = '<span class="none">Listening… nothing on air right now.</span>'; return; }
   box.innerHTML = live.map(l => `<span class="live"><span class="pulse"></span><b class="mono">${fmtF(l.f)}</b>
@@ -723,14 +792,107 @@ $("#cfgForm").onsubmit = async e => {
   const m = $("#cfgMsg"); m.className = "msg"; m.textContent = "Saving…";
   try { const r = await post("/api/config", p.toString());
     if (!r.ok) { m.className = "msg err"; m.textContent = r.error; return; }
-    m.className = r.started ? "msg ok" : "msg err"; m.textContent = r.started ? "Saved — scanner restarted." : "Saved, but the scanner did not start: " + r.error;
+    m.className = r.started ? "msg ok" : "msg err"; m.textContent = r.started ? "Saved — restarted." : "Saved, but the receiver did not start: " + r.error;
     pollStatus(); } catch (err) { m.className = "msg err"; m.textContent = String(err.message || err); }
 };
+
+// ---------- satellites ----------
+const SAT_PRESETS = [
+  {id: "iss", name: "ISS — SSTV 145.800 MHz", mode: "sstv", f: 145.8},
+  {id: "m137.9", name: "Meteor-M N2-3 / N2-4 — LRPT 137.900 MHz", mode: "lrpt", f: 137.9, v: "m2x"},
+  {id: "m137.1", name: "Meteor-M N2-3 / N2-4 — LRPT 137.100 MHz", mode: "lrpt", f: 137.1, v: "m2x"},
+  {id: "custom", name: "Other (CubeSat SSTV, custom)…"},
+];
+let satSt = null, satLive = -1, imgVersion = -1, imgLimit = 24, satInit = false;
+function satFormVis() {
+  const pr = SAT_PRESETS.find(p => p.id === $("#satPreset").value), custom = pr.id === "custom";
+  if (!custom) { $("#satMode").value = pr.mode; $("#satFreq").value = pr.f.toFixed(3); if (pr.v) $("#satVariant").value = pr.v; }
+  document.querySelectorAll(".sat-custom").forEach(e => e.style.display = custom ? "" : "none");
+  document.querySelectorAll(".sat-lrpt").forEach(e => e.style.display = $("#satMode").value === "lrpt" ? "" : "none");
+  $("#satHint").textContent = $("#satMode").value === "lrpt"
+    ? "Meteor passes last ~15 min. Leave it running: each pass is saved automatically once the signal is gone. A V-dipole or QFH antenna works best."
+    : "Leave it running during an ARISS SSTV event: every picture (PD120, PD180, Robot 36, Martin, Scottie…) is decoded and saved on its own.";
+}
+async function satFormInit() {
+  // Re-read on every visit: the receiver may have been started elsewhere.
+  if (!satInit) { satInit = true; $("#satPreset").innerHTML = SAT_PRESETS.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join(""); }
+  try { const c = (await api("/api/config")).config, f = +c.sat_freq_mhz;
+    const pr = SAT_PRESETS.find(p => p.mode === c.sat_mode && Math.abs(p.f - f) < 0.0005);
+    $("#satPreset").value = pr ? pr.id : "custom"; $("#satMode").value = c.sat_mode; $("#satFreq").value = f.toFixed(3); $("#satVariant").value = c.sat_lrpt_variant;
+  } catch (e) {}
+  satFormVis();
+}
+$("#satPreset").onchange = satFormVis; $("#satMode").onchange = satFormVis;
+$("#satStart").onclick = async () => {
+  const p = new URLSearchParams({sat_mode: $("#satMode").value, sat_freq_mhz: $("#satFreq").value, sat_lrpt_variant: $("#satVariant").value});
+  $("#satStart").disabled = true;
+  try { const r = await post("/api/sat/start", p.toString()); toast(r.ok ? "Satellite receiver started" : "Start failed: " + r.error); }
+  finally { $("#satStart").disabled = false; pollStatus(); pollSat(); }
+};
+$("#satStop").onclick = async () => { const r = await post("/api/sat/stop"); toast(r.ok ? "Back to scanning" : "Scanner: " + r.error); pollStatus(); pollSat(); };
+async function pollSat() {
+  if (page !== "sat") return;
+  try { satSt = await api("/api/sat/status"); } catch (e) { return; }
+  const s = satSt, on = s.running && s.runMode === "satellite", lrpt = s.mode === "lrpt";
+  const lamp = (ok, t) => `<span><span class="lamp${ok ? " on" : ""}"></span>${t}</span>`;
+  let rows = [["State", on ? (s.fileDone ? "file finished" : "receiving") : (s.error ? "error: " + esc(s.error) : "stopped")]];
+  if (on) {
+    rows.push(["Frequency", fmtF(s.freq) + " MHz · " + esc(s.device)], ["Channel level", s.level.toFixed(1) + " dBFS"]);
+    if (lrpt) {
+      rows.push(["Carrier", lamp(s.carrier, (s.carrier ? "locked" : "searching") + " · " + (s.offset >= 0 ? "+" : "") + s.offset + " Hz")],
+        ["Decoder", lamp(s.viterbi, s.viterbi ? "locked · BER " + (s.ber * 100).toFixed(1) + " %" : "no lock")],
+        ["Frames", lamp(s.frameSync, s.frames + " ok · " + s.framesBad + " failed")],
+        ["Image", s.rows ? s.rows + " lines · channels " + s.channels.join(", ") : "—"]);
+      if (s.passActive) rows.push(["Pass", "since " + fmtTime(s.passStart)]);
+    } else {
+      rows.push(["Picture", s.sstvBusy ? esc(s.sstvMode) + " · " + s.sstvRows + " / " + s.sstvTotal + " lines" : "waiting for a VIS header…"],
+        ["Audio tone", s.tone ? s.tone + " Hz" : "—"]);
+    }
+    rows.push(["Saved", s.saved + " this session"]);
+    if (s.drops) rows.push(["Dropped", s.drops + " blocks (CPU too slow?)"]);
+  }
+  $("#satInfo").innerHTML = rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("");
+  $("#satConst").style.display = lrpt && on ? "" : "none";
+  if (lrpt && on) drawConst(s.const);
+  if (s.live !== satLive) { satLive = s.live; const box = $("#satLiveBox");
+    const img = new Image(); img.onload = () => { box.innerHTML = ""; box.append(img); };
+    img.onerror = () => { box.innerHTML = `<div class="none">${on ? (lrpt ? "Waiting for a Meteor pass…" : "Waiting for an SSTV picture…") : "No picture in progress."}</div>`; };
+    img.src = "/api/sat/live.png?v=" + s.live; }
+}
+function drawConst(pts) {
+  const c = $("#satConst"), [w, h, d] = fitCanvas(c), g = c.getContext("2d");
+  g.fillStyle = "#0b1220"; g.fillRect(0, 0, w, h); g.strokeStyle = "#1e293b"; g.lineWidth = d;
+  g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+  g.fillStyle = "#5eead4"; const sc = w / 4;
+  for (let i = 0; i + 1 < pts.length; i += 2) g.fillRect(w / 2 + pts[i] * sc - d, h / 2 - pts[i + 1] * sc - d, 2 * d, 2 * d);
+}
+async function loadImages(reset) {
+  if (reset) imgLimit = 24;
+  const k = $("#imgKind").value, d = await api(`/api/images?limit=${imgLimit}` + (k ? "&kind=" + k : ""));
+  $("#imgTotal").textContent = d.total ? d.total + " total" : ""; $("#imgMore").hidden = d.items.length >= d.total;
+  const list = $("#imgList");
+  if (!d.items.length) { list.innerHTML = '<div class="empty" style="grid-column:1/-1">No images yet. Start the receiver above; SSTV pictures and Meteor passes are saved here automatically.</div>'; return; }
+  list.innerHTML = d.items.map(r => `<div class="card imgcard">
+      <a class="thumb" href="/img/${r.id}.png" target="_blank" title="Open full size (${r.w} × ${r.h})"><img loading="lazy" src="/img/${r.id}_thumb.png" alt=""></a>
+      <div class="info">
+        <div class="row"><b>${esc(r.mode)}</b><span class="mono" style="color:var(--muted)">${fmtF(r.f)} MHz</span></div>
+        <div class="row"><span class="mono" style="color:var(--muted)">${dayLabel(r.t)} ${fmtTime(r.t)}</span>${r.complete ? "" : '<span class="tag warn">partial</span>'}</div>
+        ${r.note ? `<div class="reason">${esc(r.note)}</div>` : ""}
+        <div class="row"><span class="acts" style="justify-content:flex-start">
+          <a class="btn sm" href="/img/${r.id}.png?dl=1">${ICON.dl}PNG</a>
+          ${r.files.map(f => `<a class="btn sm" href="/img/${r.id}${f}.png" target="_blank" title="MSU-MR channel ${f.slice(3)}">${f.slice(1)}</a>`).join("")}
+        </span><button class="btn sm danger" data-del="${r.id}" title="Delete">${ICON.del}</button></div>
+      </div></div>`).join("");
+  list.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => { if (!confirm("Delete this image?")) return; await post(`/api/img/${b.dataset.del}/delete`); pollStatus(); });
+}
+$("#imgKind").onchange = () => loadImages(true);
+$("#imgMore").querySelector("button").onclick = () => { imgLimit += 24; loadImages(false); };
 
 // ---------- timers ----------
 route();
 pollStatus();
 setInterval(pollStatus, 1000);
+setInterval(pollSat, 1000);
 setInterval(pollSpectrum, 200);
 setInterval(() => { if (page === "spectrum") { renderWinBtns(); loadHistory(); } }, 5000);
 setInterval(() => { if (page === "voice") document.querySelectorAll("#vList .time small").forEach((s, i) => { if (vItems[i]) s.textContent = ago(vItems[i].t); }); }, 15000);

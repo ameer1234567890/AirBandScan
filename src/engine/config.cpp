@@ -128,6 +128,11 @@ std::map<std::string, std::string> Config::toMap() const
     m["mp3_bitrate"] = std::to_string(mp3Bitrate);
     m["keep_other"] = keepOther ? "1" : "0";
     m["retention_days"] = std::to_string(retentionDays);
+    m["run_mode"] = runMode;
+    m["sat_mode"] = satMode;
+    m["sat_freq_mhz"] = num(satFreqHz / 1e6, 6);
+    m["sat_lrpt_variant"] = satLrptVariant;
+    m["sat_sstv_bw_khz"] = num(satSstvBwHz / 1000.0, 1);
     m["http_bind"] = httpBind;
     m["http_port"] = std::to_string(httpPort);
     m["autostart"] = autostart ? "1" : "0";
@@ -227,6 +232,23 @@ bool Config::fromMap(const std::map<std::string, std::string>& kv, std::string& 
         else if (key == "mp3_bitrate") { if (!needNum(8, 64)) return false; c.mp3Bitrate = (int)d; }
         else if (key == "keep_other") c.keepOther = toBool(v);
         else if (key == "retention_days") { if (!needNum(0, 3650)) return false; c.retentionDays = (int)d; }
+        else if (key == "run_mode")
+        {
+            if (v != "scanner" && v != "satellite") { err = "run_mode: expected scanner or satellite"; return false; }
+            c.runMode = v;
+        }
+        else if (key == "sat_mode")
+        {
+            if (v != "sstv" && v != "lrpt") { err = "sat_mode: expected sstv or lrpt"; return false; }
+            c.satMode = v;
+        }
+        else if (key == "sat_freq_mhz") { if (!needNum(1, 7000)) return false; c.satFreqHz = d * 1e6; }
+        else if (key == "sat_lrpt_variant")
+        {
+            if (v != "m2x" && v != "m2") { err = "sat_lrpt_variant: expected m2x or m2"; return false; }
+            c.satLrptVariant = v;
+        }
+        else if (key == "sat_sstv_bw_khz") { if (!needNum(10, 200)) return false; c.satSstvBwHz = d * 1000.0; }
         else if (key == "http_bind") c.httpBind = v;
         else if (key == "http_port") { if (!needNum(1, 65535)) return false; c.httpPort = (int)d; }
         else if (key == "autostart") c.autostart = toBool(v);
