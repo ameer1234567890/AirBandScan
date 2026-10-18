@@ -24,8 +24,13 @@ constexpr double kTailSec = 0.30; // ... and after the last active frame
 
 struct Channel::Dsp
 {
-    Dsp(double fs, double offset, double bw)
-        : chan(fs, offset, bw), am(chan.outputRate())
+    // NFM keeps the channel rate above the channel width so the full
+    // deviation reaches the discriminator; AM only needs ~16 kHz.
+    Dsp(double fs, double offset, double bw, bool nfm)
+        : chan(fs, offset, bw, nfm ? std::max(16000.0, bw * 1.25) : 16000.0),
+          am(chan.outputRate()),
+          fm(chan.outputRate(), std::clamp(bw * 0.2, 1500.0, 5000.0)),
+          isFm(nfm)
     {
         int n = kSpgFft;
         fft.init(n);
@@ -38,6 +43,8 @@ struct Channel::Dsp
 
     Channelizer chan;
     AmDemod am;
+    FmDemod fm;
+    bool isFm = false;
     std::vector<cf> iq;          // scratch
     std::vector<float> audio;    // 8 kHz, modulation-normalised
     std::vector<float> carrier;  // carrier amplitude per audio sample
@@ -56,7 +63,7 @@ Channel::Channel(int id, const Config& cfg, RecordingStore& store, double fs,
     : id_(id), cfg_(cfg), store_(store), fs_(fs), centerHz_(centerHz), freqHz_(freqHz),
       firstSample_(firstSample), startMs_(startMs), lastActive_(firstSample)
 {
-    dsp_ = std::make_unique<Dsp>(fs, freqHz - centerHz, cfg.channelBwHz);
+    dsp_ = std::make_unique<Dsp>(fs, freqHz - centerHz, cfg.channelBwHz, cfg.modulation == "nfm");
     nextSample_ = firstSample;
     thread_ = std::thread([this] { worker(); });
 }
@@ -144,7 +151,10 @@ void Channel::process(const IqBlock& b)
     d.iq.clear();
     d.chan.process(b.iq.data() + 2 * skip, b.count() - skip, d.iq);
     size_t a0 = d.audio.size();
-    d.am.process(d.iq, d.audio, d.carrier);
+    if (d.isFm)
+        d.fm.process(d.iq, d.audio, d.carrier);
+    else
+        d.am.process(d.iq, d.audio, d.carrier);
     spectrogramFeed(d.iq);
 
     if (d.audio.size() > a0)
@@ -219,8 +229,9 @@ void Channel::finish()
         return;
     }
 
-    // Squelch: AM noise is normalised by a near-zero carrier when the
-    // transmitter is off, so fade the audio out wherever the carrier drops.
+    // Squelch: with the transmitter off, AM noise is normalised by a
+    // near-zero carrier and FM noise is full deviation, so fade the audio
+    // out wherever the carrier drops.
     std::vector<float> cs = carrier;
     std::nth_element(cs.begin(), cs.begin() + cs.size() * 7 / 10, cs.end());
     const float cref = std::max(cs[cs.size() * 7 / 10], 1e-9f);

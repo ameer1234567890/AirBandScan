@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Build a synthetic airband IQ capture (8-bit stereo WAV) for testing
-AirBandScan without an SDR:  make_test_iq.py out.wav [speech1.wav ...]
+AirBandScan without an SDR:  make_test_iq.py [--fm] out.wav [speech1.wav ...]
 
-Contains AM voice (from the given speech files), an ACARS-like data tone, an
+Contains voice (from the given speech files), an ACARS-like data tone, an
 unmodulated carrier, a noise-modulated carrier and a very short burst.
+Default AM; --fm makes narrow-band FM (2.5 kHz deviation, 6 dB/octave
+pre-emphasis) with every signal on the 6.25 kHz raster.
 Needs numpy and ffmpeg (to read the speech files)."""
 import subprocess, sys, wave
 import numpy as np
@@ -12,6 +14,9 @@ FS = 1_024_000
 CENTER = 120.0e6
 DUR = 42.0
 rng = np.random.default_rng(1)
+FM = "--fm" in sys.argv
+if FM:
+    sys.argv.remove("--fm")
 
 def load(path, rate=16000):
     raw = subprocess.run(["ffmpeg", "-v", "error", "-i", path, "-ac", "1", "-ar", str(rate),
@@ -35,24 +40,43 @@ def add_am(freq, t0, audio, rate, amp, mod=0.8):
     iq[s:s + len(m)] += (amp * (1.0 + mod * np.clip(m, -1, 1)) * carrier).astype(np.complex64)
     print(f"  {freq/1e6:.4f} MHz  t={t0:5.1f}s  {len(m)/FS:4.1f}s  amp={amp}")
 
+def add_fm(freq, t0, audio, rate, amp, mod=0.8, dev=2500.0):
+    # Pre-emphasis H = 1 + jf/300, normalised at 1 kHz, limited to +-dev.
+    pe = audio + rate / (2 * np.pi * 300.0) * np.diff(audio, prepend=audio[:1])
+    pe = np.clip(mod * pe / np.hypot(1.0, 1000.0 / 300.0), -1, 1)
+    m = upsample(pe, rate)
+    s = int(t0 * FS)
+    m = m[: n - s]
+    t = (np.arange(len(m)) + s) / FS
+    phase = 2 * np.pi * (freq - CENTER) * t + 2 * np.pi * dev * np.cumsum(m) / FS
+    iq[s:s + len(m)] += (amp * np.exp(1j * phase)).astype(np.complex64)
+    print(f"  {freq/1e6:.5f} MHz  t={t0:5.1f}s  {len(m)/FS:4.1f}s  amp={amp}  FM")
+
+def add_sig(freq, t0, audio, rate, amp, mod=0.8):
+    if FM:
+        freq = round(freq / 6250.0) * 6250.0  # NFM channel raster
+        add_fm(freq, t0, audio, rate, amp, mod)
+    else:
+        add_am(freq, t0, audio, rate, amp, mod)
+
 speech = [load(p) for p in sys.argv[2:]]
 if not speech:
     sys.exit("give at least one speech file")
 gap = np.zeros(int(0.35 * 16000))
 
 print("signals:")
-add_am(119.700e6, 3.0, np.concatenate([speech[0], gap, speech[0][::-1][:8000]]) , 16000, 0.08)
+add_sig(119.700e6, 3.0, np.concatenate([speech[0], gap, speech[0][::-1][:8000]]) , 16000, 0.08)
 seq = np.concatenate([x for s in speech[1:4] or speech for x in (s, gap)])
-add_am(120.208333e6, 11.0, seq, 16000, 0.06)
+add_sig(120.208333e6, 11.0, seq, 16000, 0.06)
 # ACARS-like: 2400 bd MSK -> audio tones 1200/2400 Hz, constant envelope
 bits = rng.integers(0, 2, int(4.0 * 2400))
 f_inst = np.repeat(np.where(bits == 1, 1200.0, 2400.0), 16000 // 2400 + 1)[: int(4.0 * 16000)]
 tone = np.sin(2 * np.pi * np.cumsum(f_inst) / 16000)
-add_am(120.100e6, 5.0, tone, 16000, 0.07, mod=0.5)
-add_am(120.350e6, 20.0, np.zeros(int(4.0 * 16000)), 16000, 0.07)          # dead carrier
-add_am(119.900e6, 26.0, rng.normal(0, 0.3, int(0.25 * 16000)), 16000, 0.07)  # short burst
-add_am(120.025e6, 28.0, speech[-1], 16000, 0.025)                           # weak voice
-add_am(119.800e6, 34.0, np.clip(rng.normal(0, 0.4, int(3.0 * 16000)), -1, 1), 16000, 0.07)  # noise
+add_sig(120.100e6, 5.0, tone, 16000, 0.07, mod=0.5)
+add_sig(120.350e6, 20.0, np.zeros(int(4.0 * 16000)), 16000, 0.07)          # dead carrier
+add_sig(119.900e6, 26.0, rng.normal(0, 0.3, int(0.25 * 16000)), 16000, 0.07)  # short burst
+add_sig(120.025e6, 28.0, speech[-1], 16000, 0.025)                           # weak voice
+add_sig(119.800e6, 34.0, np.clip(rng.normal(0, 0.4, int(3.0 * 16000)), -1, 1), 16000, 0.07)  # noise
 
 pk = np.max(np.abs(np.concatenate([iq.real, iq.imag])))
 print(f"peak {pk:.2f}")

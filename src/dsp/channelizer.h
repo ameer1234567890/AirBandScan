@@ -1,4 +1,4 @@
-// Channelizer: pulls one narrow AM channel out of the wideband IQ stream.
+// Channelizer: pulls one narrow AM / NFM channel out of the wideband IQ stream.
 //
 //   wideband IQ --NCO mix--> multi-stage FIR decimation --> ~16 kHz IQ
 //               --> sharp channel low-pass (+-bw/2)
@@ -258,6 +258,66 @@ public:
 private:
     double inRate_;
     float carrier_ = 0.f, carrierA_ = 0.01f;
+    Biquad hp1_, hp2_, lp1_, lp2_;
+    double step_ = 0.5, phase_ = 0.0;
+    float prev_ = 0.f;
+};
+
+// Narrow-band FM demodulator: channel IQ -> 8 kHz audio.
+//
+// Polar discriminator (phase step between samples), then the same 250 Hz -
+// 3.2 kHz voice band-pass as AM and a 6 dB/octave de-emphasis (300 Hz corner,
+// normalised to unity at 1 kHz) for the pre-emphasis land-mobile / marine /
+// amateur FM transmitters apply. Audio is scaled so `deviationHz` of deviation
+// at 1 kHz gives 1.0, comparable to the AM modulation index. `carrier` is the
+// smoothed envelope, as for AM: it drives the squelch gate and classifier.
+class FmDemod
+{
+public:
+    static constexpr double kAudioRate = 8000.0;
+
+    FmDemod(double inRate, double deviationHz) : inRate_(inRate)
+    {
+        carrierA_ = (float)(1.0 - std::exp(-1.0 / (0.040 * inRate))); // ~40 ms
+        hp1_ = Biquad::highpass(inRate, 250.0);
+        hp2_ = Biquad::highpass(inRate, 250.0);
+        lp1_ = Biquad::lowpass(inRate, 3200.0);
+        lp2_ = Biquad::lowpass(inRate, 3200.0);
+        const double fc = 300.0;
+        deA_ = (float)(1.0 - std::exp(-2.0 * M_PI * fc / inRate));
+        deGain_ = (float)std::sqrt(1.0 + (1000.0 / fc) * (1000.0 / fc));
+        scale_ = (float)(inRate / (2.0 * M_PI * deviationHz));
+        step_ = kAudioRate / inRate;
+    }
+
+    void process(const std::vector<cf>& in, std::vector<float>& audio, std::vector<float>& carrier)
+    {
+        for (const cf& s : in)
+        {
+            float env = std::abs(s);
+            carrier_ += (env - carrier_) * carrierA_;
+            float f = std::arg(s * std::conj(last_)) * scale_; // deviation / deviationHz
+            last_ = s;
+            de_ += (f - de_) * deA_;
+            float a = lp2_.run(lp1_.run(hp2_.run(hp1_.run(de_ * deGain_))));
+
+            phase_ += step_;
+            if (phase_ >= 1.0)
+            {
+                phase_ -= 1.0;
+                double frac = std::clamp(1.0 - phase_ / step_, 0.0, 1.0);
+                audio.push_back((float)(prev_ + (a - prev_) * frac));
+                carrier.push_back(carrier_);
+            }
+            prev_ = a;
+        }
+    }
+
+private:
+    double inRate_;
+    cf last_{1.f, 0.f};
+    float carrier_ = 0.f, carrierA_ = 0.01f;
+    float de_ = 0.f, deA_ = 0.1f, deGain_ = 1.f, scale_ = 1.f;
     Biquad hp1_, hp2_, lp1_, lp2_;
     double step_ = 0.5, phase_ = 0.0;
     float prev_ = 0.f;

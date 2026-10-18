@@ -29,6 +29,7 @@ and lets you listen, browse and download them from a web browser.
 - 💾 **MP3 and WAV:** voice calls are saved as MP3 automatically; any recording can be downloaded as MP3 or WAV.
 - 🌈 **Spectrum page:** live spectrum, waterfall and activity history, plus a spectrogram of every signal that was *not* recognised as voice.
 - ✈️ **Voice only:** ACARS and VDL2 data channels are ignored by default.
+- 📻 **AM or NFM:** AM for the airband, or narrow-band FM (marine, PMR, amateur, business radio), with 8.33 / 25 / 12.5 / 6.25 / 5 kHz channel rasters.
 - ⚙️ **Web settings:** device, gain, ranges, thresholds and MP3 options, all from the browser.
 - 🖥️ **Single native program:** C++17, no Python, runs as a desktop app or headless server on Windows and Linux; open it from any phone or PC on your network.
 
@@ -173,11 +174,12 @@ On first start a commented `airband.conf` is created; see [`airband.conf.example
 | Use a fixed gain rather than AGC | AGC makes the noise floor move |
 | Too much noise saved as voice? Raise **Voice threshold** | Lower it if weak calls land on the Spectrum page |
 | Don't want ATIS / VOLMET? Add them to **Ignore** | Continuous broadcasts are otherwise split every *Maximum length* seconds |
+| Scanning FM radio (marine, PMR446, amateur)? Set **Modulation** to *NFM*, **Channel width** 12.5 kHz (25 kHz channels: 16 kHz) and the matching **Channel raster**, e.g. 6.25 or 12.5 kHz | Airband voice is AM; most other VHF/UHF voice is narrow FM. All scan ranges use the same modulation |
 
 ## How it works
 
 ```
- SDR ──► range hopping ──► FFT + noise learning ──► detection ──► per-call channel ──► AM demod ──► voice check
+ SDR ──► range hopping ──► FFT + noise learning ──► detection ──► per-call channel ──► AM / NFM demod ──► voice check
                                                                                                       │
                                        Voice recordings (WAV + MP3)  ◄── voice ───────────────────────┤
                                        Spectrum & undecoded (+ spectrogram) ◄── not voice ────────────┘
@@ -187,7 +189,7 @@ On first start a commented `airband.conf` is created; see [`airband.conf.example
 2. **Detect:** every 20 ms a Welch-averaged FFT is compared with each window's learned noise floor.
    A signal `start_level` dB above noise opens a call, snapped to the 8.33 kHz airband raster;
    it closes after `timeout_ms` below `stop_level`.
-3. **Record:** each call gets its own channelizer and AM demodulator (8 kHz mono audio), seeded with a
+3. **Record:** each call gets its own channelizer and AM or NFM demodulator (8 kHz mono audio), seeded with a
    pre-roll so nothing is clipped, and a squelch gate removes the hiss before and after the carrier.
 4. **Classify:** pitch periodicity, pitch movement, loudness variation and modulation depth decide
    *voice* or *not voice*. You can move any recording between the two lists yourself.
@@ -222,7 +224,7 @@ The list is rebuilt from the `.meta` files at start-up, so recordings can be cop
 ## Testing without an SDR
 
 ```bash
-# Make a test IQ file: AM voice from speech files + data tone, carrier, noise, short burst
+# Make a test IQ file (add --fm for narrow-band FM): voice from speech files + data tone, carrier, noise, short burst
 python3 tools/make_test_iq.py test_iq.wav speech1.wav speech2.wav
 # Settings → Device type "IQ WAV file", file test_iq.wav, centre 120 MHz
 

@@ -4,6 +4,8 @@ autostart = 1
 bias_tee = 0
 channel_bw_khz = 8
 channel_step_khz = 8.333333
+# modulation: am (airband) | nfm (narrow FM; use channel_bw_khz = 12.5)
+modulation = am
 # device: rtlsdr | rtltcp | airspy | airspyhf | sdrplay | hackrf | pluto | wav
 device = rtlsdr
 device_index = 0

@@ -2,7 +2,7 @@
 //
 // The scanner thread hands every wideband IQ block to each open Channel; the
 // Channel's own worker thread mixes its frequency to baseband, demodulates
-// AM to 8 kHz audio and builds a narrow-band spectrogram. When the scanner
+// AM or NFM to 8 kHz audio and builds a narrow-band spectrogram. When the scanner
 // closes it (signal gone / too long) the worker trims trailing silence,
 // classifies the audio as voice or not and writes WAV / MP3 / SPG / meta.
 #pragma once

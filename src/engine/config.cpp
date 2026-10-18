@@ -112,6 +112,7 @@ std::map<std::string, std::string> Config::toMap() const
     m["ranges"] = formatRanges(ranges);
     m["ignored"] = formatRanges(ignored);
     m["channel_step_khz"] = num(channelStepHz / 1000.0, 6);
+    m["modulation"] = modulation;
     m["channel_bw_khz"] = num(channelBwHz / 1000.0, 2);
     m["start_level_db"] = num(startLevelDb, 1);
     m["stop_level_db"] = num(stopLevelDb, 1);
@@ -200,6 +201,16 @@ bool Config::fromMap(const std::map<std::string, std::string>& kv, std::string& 
             if (!needNum(0, 100)) return false;
             // "8.33" / "8.333" mean the exact 25/3 kHz airband raster.
             c.channelStepHz = std::fabs(d - 25.0 / 3.0) < 0.01 ? 25000.0 / 3.0 : d * 1000.0;
+        }
+        else if (key == "modulation")
+        {
+            std::string m = v == "fm" ? "nfm" : v;
+            if (m != "am" && m != "nfm")
+            {
+                err = "modulation: expected am or nfm";
+                return false;
+            }
+            c.modulation = m;
         }
         else if (key == "channel_bw_khz") { if (!needNum(3, 25)) return false; c.channelBwHz = d * 1000.0; }
         else if (key == "start_level_db") { if (!needNum(1, 60)) return false; c.startLevelDb = d; }

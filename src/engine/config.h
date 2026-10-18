@@ -39,7 +39,8 @@ struct Config
         {136.700e6, 136.975e6},   // VDL2 / data
     };
     double channelStepHz = 25000.0 / 3.0; // snap to the 8.33 kHz airband raster
-    double channelBwHz   = 8000.0;        // AM channel filter (total width)
+    double channelBwHz   = 8000.0;        // channel filter (total width)
+    std::string modulation = "am";        // am | nfm (narrow-band FM)
     double startLevelDb  = 6.0;           // open a transmission (dB above noise)
     double stopLevelDb   = 3.0;           // keep it alive while above this
     int    dwellMs       = 500;           // time on each range when idle
