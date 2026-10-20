@@ -267,13 +267,34 @@ HttpResponse App::route(const HttpRequest& req)
         return r;
     }
 
-    // ---- Recording files: /rec/<id>.<wav|mp3|spg> ----
+    // ---- Recording files: /rec/<id>.<wav|mp3|spg|peaks> ----
     if (p.rfind("/rec/", 0) == 0)
     {
         std::string name = p.substr(5);
         size_t dot = name.rfind('.');
         if (dot == std::string::npos) return HttpResponse::text(404, "not found");
         std::string id = name.substr(0, dot), ext = name.substr(dot);
+        if (ext == ".peaks")
+        {
+            // Waveform thumbnail: 220 peak levels (0-255), so the page never fetches whole WAVs
+            std::string path = store.path(id, ".wav");
+            std::vector<int16_t> pcm;
+            int rate = 0;
+            if (path.empty() || !readWav16(path, pcm, rate)) return HttpResponse::text(404, "not found");
+            const size_t n = 220;
+            std::string peaks(n, '\0');
+            for (size_t i = 0; i < n && !pcm.empty(); i++)
+            {
+                size_t a = i * pcm.size() / n, b = (i + 1) * pcm.size() / n;
+                int m = 0;
+                for (size_t k = a; k < b; k++) m = std::max(m, std::abs((int)pcm[k]));
+                peaks[i] = (char)std::min(255, (m * 255 + 16383) / 32767);
+            }
+            HttpResponse r;
+            r.contentType = "application/octet-stream";
+            r.body = std::move(peaks);
+            return r;
+        }
         if (ext != ".wav" && ext != ".mp3" && ext != ".spg") return HttpResponse::text(404, "not found");
         if (ext == ".mp3")
         {

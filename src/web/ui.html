@@ -449,20 +449,15 @@ player.addEventListener("ended", () => { if (autoQueue.length) { const n = autoQ
 function seek(id, frac) { if (playingId !== id) { playRec(id); player.addEventListener("loadedmetadata", () => { player.currentTime = frac * player.duration; }, {once: true}); }
   else if (player.duration) player.currentTime = frac * player.duration; }
 
-// waveform thumbnails, decoded once per recording and cached
+// waveform thumbnails: small peak lists from the server, cached per recording
 const waveCache = new Map();
-let audioCtx = null;
 async function drawWave(id, canvas) {
   let peaks = waveCache.get(id);
   if (!peaks) {
     try {
-      const buf = await (await fetch("/rec/" + id + ".wav")).arrayBuffer();
-      const dv = new DataView(buf); let off = 12, data = null;
-      while (off + 8 <= buf.byteLength) { const tag = String.fromCharCode(dv.getUint8(off), dv.getUint8(off + 1), dv.getUint8(off + 2), dv.getUint8(off + 3));
-        const sz = dv.getUint32(off + 4, true); if (tag === "data") { data = new Int16Array(buf, off + 8, Math.min(sz, buf.byteLength - off - 8) >> 1); break; } off += 8 + sz + (sz & 1); }
-      const N = 220; peaks = new Float32Array(N);
-      if (data && data.length) { const step = data.length / N; for (let i = 0; i < N; i++) { let m = 0; const a = Math.floor(i * step), b = Math.floor((i + 1) * step);
-        for (let k = a; k < b; k++) { const v = Math.abs(data[k]); if (v > m) m = v; } peaks[i] = m / 32768; } }
+      const r = await fetch("/rec/" + id + ".peaks"); if (!r.ok) return;
+      const b = new Uint8Array(await r.arrayBuffer()); peaks = new Float32Array(b.length);
+      for (let i = 0; i < b.length; i++) peaks[i] = b[i] / 255;
       waveCache.set(id, peaks);
     } catch (e) { return; }
   }
