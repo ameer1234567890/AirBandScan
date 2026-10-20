@@ -1,0 +1,22 @@
+services:
+  airbandscan:
+    build: .
+    container_name: airbandscan
+    device_cgroup_rules:
+      - 'c 189:* rwm'
+    environment:
+      - CONFIG_FILE=/app/config/airband.conf
+      - WEB_PORT=8080
+      - RECORDINGS_DIR=/app/recordings
+      #- EXTRA_ARGS=--no-autostart
+    ports:
+      - 8080:8080
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - airbandscan_recordings:/app/recordings
+      - airbandscan_config:/app/config
+    restart: unless-stopped
+
+volumes:
+  airbandscan_recordings:
+  airbandscan_config:
