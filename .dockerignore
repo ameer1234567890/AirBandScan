@@ -1,0 +1,13 @@
+.git
+.github
+build
+build-*
+dist
+recordings
+hoptest_rec
+airband.conf
+*.log
+log.txt
+docs
+/*.png
+/*.jpg

@@ -1,7 +1,9 @@
 services:
   airbandscan:
     build: .
+    image: airbandscan
     container_name: airbandscan
+    # USB SDRs: allow USB devices (major 189) and share /dev/bus/usb, so a dongle can be replugged
     device_cgroup_rules:
       - 'c 189:* rwm'
     environment:

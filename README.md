@@ -157,6 +157,22 @@ source; see the `windows-x86` job in [`.github/workflows/release.yml`](.github/w
 The needed DLLs are copied next to `airbandscan.exe`, so it also starts with a double-click.
 For an RTL-SDR on Windows, install the WinUSB driver with [Zadig](https://zadig.akeo.ie/).
 
+### Docker
+
+The image compiles AirBandScan from source with the [RTL-SDR Blog driver](https://github.com/rtlsdrblog/rtl-sdr-blog),
+so RTL-SDR Blog V4 dongles work, as do the other SDRs. Nothing in it is x86-specific, so it should also build on a Raspberry Pi (64-bit or 32-bit OS).
+
+```bash
+git clone https://github.com/dhihacker/AirBandScan.git
+cd AirBandScan
+docker compose up -d --build
+```
+
+Open **http://\<host-ip\>:8080/**. The settings (`airband.conf`) and recordings are kept in the Docker volumes
+`airbandscan_config` and `airbandscan_recordings`. USB SDRs are passed in through `/dev/bus/usb`, so a dongle can be
+replugged without restarting the container; network SDRs (rtl_tcp, PlutoSDR over IP) need nothing extra.
+The kernel DVB driver is detached from the dongle automatically, so nothing has to be blacklisted on the host.
+
 > **MP3:** LAME is loaded at run time (`libmp3lame.so.0` / `libmp3lame-0.dll`). If it is
 > missing, a `lame` or `ffmpeg` command on `PATH` is used instead. Without either, WAV still
 > works and the Settings page tells you MP3 is unavailable.
@@ -308,6 +324,7 @@ AirBandScan builds on three open-source projects:
 The SSTV and LRPT decoders are written for AirBandScan. The Meteor link parameters and MSU-MR image format follow
 [SatDump](https://github.com/SatDump/SatDump) and [meteor_decoder](https://github.com/artlav/meteor_decoder).
 PNG output uses [stb_image_write](https://github.com/nothings/stb) (public domain).
+Docker support was contributed by [Ameer Dawood](https://github.com/ameer1234567890).
 
 ## License
 
